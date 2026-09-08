@@ -145,6 +145,8 @@
   .sch-lesson{position:relative;background:var(--card);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;padding:6px 8px;font-size:12px;cursor:pointer}
   .sch-lesson .t{font-weight:700;color:var(--accent)}
   .sch-lesson .rm{color:var(--muted);font-size:11px}
+  .sch-lesson.off{opacity:.38;filter:grayscale(.6)}
+  .sch-lesson.off:hover{opacity:.7}
   .sch-del{position:absolute;top:4px;right:4px;border:none;background:none;color:var(--muted);cursor:pointer;font-size:12px;padding:2px}
   .sch-del:hover{color:var(--danger)}
   @media(max-width:760px){#app{grid-template-columns:1fr!important}aside{position:static;max-height:none;order:-1}}
@@ -725,8 +727,10 @@ function renderSch(){
   for(let i=0;i<7;i++){const d=addDays(base,i);days.push({d,iso:d.toISOString().slice(0,10),label:d.toLocaleDateString('ru-RU',{weekday:'short',day:'numeric',month:'numeric'})});}
   const todayIso=today();
   const lessons=data.schedule.lessons||{};
+  const par=((Math.floor((base.getTime()-new Date(base.getFullYear(),0,1).getTime())/604800000)+1)%2)===0?'even':'odd';
+  const parLabel=par==='odd'?'Нечётная неделя':'Чётная неделя';
   let html=`<div class="sch-toolbar">
-    <div><h2 style="margin:0">📅 Расписание на неделю</h2><div style="font-size:13px;color:var(--muted)">${fmtShort(days[0].d)} — ${fmtShort(days[6].d)}</div></div>
+    <div><h2 style="margin:0">📅 Расписание на неделю</h2><div style="font-size:13px;color:var(--muted)">${fmtShort(days[0].d)} — ${fmtShort(days[6].d)} · <span style="color:${par==='odd'?'var(--soon)':'var(--points)'};font-weight:600">${parLabel}</span></div></div>
     <div class="row"><button class="btn ghost sm" onclick="schNav(-7)">◀ Прошлая</button><button class="btn ghost sm" onclick="schNav(0)">Текущая неделя</button><button class="btn ghost sm" onclick="schNav(7)">Следующая ▶</button><button class="btn sm" onclick="closeSch()">Закрыть</button></div>
   </div>`;
   html+=`<div class="sch-grid">`;
@@ -738,9 +742,12 @@ function renderSch(){
       const subj=data.subjects.find(s=>s.id===l.subject)||{};
       const name=l.title||subj.name||'Без названия';
       const room=l.room||subj.room||'';
-      html+=`<div class="sch-lesson" onclick="schEdit('${day.iso}',${j})" title="Изменить">
+      const lw=l.week||'';
+      const onWk=!lw||lw===par;
+      const wkBadge=lw==='even'?'<span class="tag points" style="font-size:10px;padding:1px 6px">чёт.</span>':lw==='odd'?'<span class="tag soon" style="font-size:10px;padding:1px 6px">нечёт.</span>':'';
+      html+=`<div class="sch-lesson ${onWk?'':'off'}" onclick="schEdit('${day.iso}',${j})" title="Изменить">
         <button class="sch-del" onclick="event.stopPropagation();schDel('${day.iso}','${l.uid}')">✕</button>
-        <div class="t">${l.start?esc(l.start):'—'}${l.end?'–'+esc(l.end):''}</div>
+        <div class="t">${l.start?esc(l.start):'—'}${l.end?'–'+esc(l.end):''} ${wkBadge}</div>
         <div>${esc(name)}</div>${room?`<div class="rm">каб. ${esc(room)}</div>`:''}</div>`;
     });
     if(!list.length)html+=`<div style="font-size:12px;color:var(--muted)">Нет пар</div>`;
@@ -756,7 +763,7 @@ function schNav(delta){
 }
 function schEnsure(day){if(!data.schedule.lessons)data.schedule.lessons={};if(!data.schedule.lessons[day])data.schedule.lessons[day]=[];return data.schedule.lessons[day];}
 function schAdd(day){
-  const t={uid:uid(),start:'',end:'',title:'',subject:'',room:''};
+  const t={uid:uid(),start:'',end:'',title:'',subject:'',room:'',week:''};
   schEnsure(day).push(t);
   saveSch();renderSch();
 }
@@ -773,6 +780,11 @@ function schEdit(day,idx){
     <div class="field"><label>Предмет</label><select id="sl_subject"><option value="">— без предмета —</option>${subjOpts||''}</select></div>
     <div class="field"><label>Время</label><div class="row"><input id="sl_start" type="time" value="${esc(l.start||'')}" style="flex:1"><span>—</span><input id="sl_end" type="time" value="${esc(l.end||'')}" style="flex:1"></div></div>
     <div class="field"><label>Кабинет</label><input id="sl_room" value="${esc(l.room||'')}" placeholder="Например: 203"></div>
+    <div class="field"><label>Неделя</label><select id="sl_week">
+      <option value="" ${!l.week?'selected':''}>Каждую неделю</option>
+      <option value="odd" ${l.week==='odd'?'selected':''}>Нечётная</option>
+      <option value="even" ${l.week==='even'?'selected':''}>Чётная</option>
+    </select></div>
     <div class="row" style="justify-content:flex-end"><button class="btn ghost" onclick="renderSch()">Отмена</button><button class="btn" onclick="schSave('${day}','${l.uid}')">Сохранить</button></div>`;
 }
 function schSave(day,uid){
@@ -784,6 +796,7 @@ function schSave(day,uid){
   l.start=document.getElementById('sl_start').value;
   l.end=document.getElementById('sl_end').value;
   l.room=document.getElementById('sl_room').value.trim();
+  l.week=document.getElementById('sl_week').value;
   if(!l.title&&!l.subject&&!l.start&&!l.room){schDel(day,uid);return;}
   saveSch();renderSch();
 }
