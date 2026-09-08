@@ -130,6 +130,12 @@
   .xls-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
   .xls-tabs button{border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:8px;padding:5px 12px;font-size:13px;cursor:pointer}
   .xls-tabs button.active{background:var(--accent);color:var(--accent-contrast);border-color:var(--accent)}
+  .pdf-box{display:flex;flex-direction:column;gap:10px}
+  .pdf-box .pdf-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:center;background:var(--file-bg);border:1px solid var(--line);border-radius:8px;padding:8px;position:sticky;top:0;z-index:2}
+  .pdf-box .pdf-btn{border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;min-width:38px}
+  .pdf-box .pdf-btn:disabled{opacity:.4;cursor:default}
+  .pdf-box .pdf-page{text-align:center;overflow:auto}
+  .pdf-box canvas{max-width:100%;height:auto;box-shadow:var(--shadow);border-radius:4px;background:#fff;touch-action:pan-y}
   .sch-toolbar{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
   .sch-grid{display:grid;grid-template-columns:repeat(7,minmax(150px,1fr));gap:8px;overflow-x:auto;padding-bottom:6px}
   .sch-day{background:var(--file-bg);border:1px solid var(--line);border-radius:10px;padding:8px;min-height:120px;display:flex;flex-direction:column;gap:6px}
@@ -512,6 +518,90 @@ function openPure(base64,mime,download){
   setTimeout(()=>URL.revokeObjectURL(url),60000);
 }
 function closePreview(){document.getElementById('pvBg').classList.remove('open');}
+function renderPdf(dataUrl,bodyEl){
+  bodyEl.innerHTML='';
+  const box=document.createElement('div');
+  box.className='pdf-box';
+  box.innerHTML=`<div class="pdf-controls">
+      <button class="pdf-btn" data-act="prev">◀</button>
+      <span>Стр. <b data-pg>1</b> из <b data-total>…</b></span>
+      <button class="pdf-btn" data-act="next">▶</button>
+      <span style="color:var(--muted)">·</span>
+      <button class="pdf-btn" data-act="zoomout">−</button>
+      <button class="pdf-btn" data-act="zoomin">+</button>
+    </div>
+    <div class="pdf-page"><canvas></canvas></div>`;
+  bodyEl.appendChild(box);
+  const canvas=box.querySelector('canvas');
+  const pageEl=box.querySelector('[data-pg]');
+  const totalEl=box.querySelector('[data-total]');
+  const ctx=canvas.getContext('2d');
+  let pdf=null,pageNum=1,scale=1.4,zoom=1;
+  box.querySelectorAll('[data-act]').forEach(b=>b.addEventListener('click',e=>{
+    const act=e.currentTarget.dataset.act;
+    if(act==='prev')show(pageNum-1);
+    else if(act==='next')show(pageNum+1);
+    else if(act==='zoomout'){zoom=Math.max(.4,zoom-.2);renderPage();}
+    else if(act==='zoomin'){zoom=Math.min(3,zoom+.2);renderPage();}
+  }));
+  function renderPage(){
+    if(!pdf)return;
+    pdf.getPage(pageNum).then(pg=>{
+      const vp=pg.getViewport({scale:scale*zoom});
+      canvas.width=vp.width;
+      canvas.height=vp.height;
+      const dpr=window.devicePixelRatio||1;
+      canvas.width=Math.floor(vp.width*dpr);
+      canvas.height=Math.floor(vp.height*dpr);
+      canvas.style.width=Math.floor(vp.width)+'px';
+      canvas.style.height=Math.floor(vp.height)+'px';
+      ctx.setTransform(dpr,0,0,dpr,0,0);
+      ctx.fillStyle='#fff';
+      ctx.fillRect(0,0,vp.width,vp.height);
+      ctx.scale(zoom,zoom);
+      pg.render({canvasContext:ctx,viewport:pg.getViewport({scale:scale})}).promise.then(()=>{});
+    });
+  }
+  function show(n){
+    if(!pdf)return;
+    if(n<1||n>pdf.numPages)return;
+    pageNum=n;
+    pageEl.textContent=n;
+    totalEl.textContent=pdf.numPages;
+    renderPage();
+  }
+  function touchStart(x){box._tx=x;}
+  function touchEnd(x){
+    if(box._tx==null)return;
+    const dx=x-box._tx;
+    if(Math.abs(dx)>40){if(dx<0)show(pageNum+1);else show(pageNum-1);}
+    box._tx=null;
+  }
+  box.querySelector('.pdf-page').addEventListener('touchstart',e=>touchStart(e.touches[0].clientX),{passive:true});
+  box.querySelector('.pdf-page').addEventListener('touchend',e=>touchEnd(e.changedTouches[0].clientX),{passive:true});
+  if(!window.pdfjsLib){
+    const s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    s.onload=()=>{window.pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';loadPdf();};
+    s.onerror=()=>{box.innerHTML='<div style="text-align:center;padding:30px;color:var(--muted)">Не удалось загрузить просмотрщик PDF.<br>Проверьте подключение к интернету.</div>';};
+    document.head.appendChild(s);
+  }else loadPdf();
+  function loadPdf(){
+    const comma=dataUrl.indexOf(',');
+    const b64=dataUrl.slice(comma+1);
+    const bin=atob(b64);
+    const len=bin.length;
+    const bytes=new Uint8Array(len);
+    for(let i=0;i<len;i++)bytes[i]=bin.charCodeAt(i);
+    pdfjsLib.getDocument({data:bytes}).promise.then(p=>{
+      pdf=p;
+      totalEl.textContent=pdf.numPages;
+      show(1);
+    }).catch(err=>{
+      box.innerHTML='<div style="text-align:center;padding:30px;color:var(--danger)">Не удалось открыть PDF: '+esc(err.message||'ошибка')+'</div>';
+    });
+  }
+}
 function renderXlsx(dataUrl,bodyEl){
   if(!window.XLSX){
     const s=document.createElement('script');
@@ -574,7 +664,13 @@ function previewFile(tid,fi){
   const pv=document.getElementById('pv');
   let inner;
   if(isImage(f))inner=`<img src="${esc(f.dataUrl)}" alt="${esc(f.name)}">`;
-  else if(isPdf(f))inner=`<iframe src="${esc(f.dataUrl)}" title="${esc(f.name)}"></iframe>`;
+  else if(isPdf(f)){
+    inner=`<div style="text-align:center;padding:30px"><em>Загрузка PDF…</em></div>`;
+    pv.innerHTML=`<div class="pv-head"><strong>${esc(f.name)}</strong><span style="color:var(--muted);font-size:13px">${esc(f.size)}</span><span style="flex:1"></span><button class="btn ghost sm" onclick="openPure('${part}', '${mimeOf(f)}','${esc(f.name)}')">⬇ Скачать</button><button class="btn sm" onclick="closePreview()">Закрыть</button></div><div class="pv-body">${inner}</div>`;
+    bg.classList.add('open');
+    renderPdf(f.dataUrl,pv.querySelector('.pv-body'));
+    return;
+  }
   else if(isText(f)){
     let txt;try{txt=decodeURIComponent(escape(atob(part)));}catch(e){txt='(не удалось прочитать текст файла)';}
     inner=`<pre>${esc(txt)}</pre>`;
