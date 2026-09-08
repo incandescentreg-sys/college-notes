@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Дарья Измайлова — колледж</title>
+<style>
+  :root{
+    --bg:#f4f5f7; --card:#fff; --text:#1f2937; --muted:#6b7280;
+    --accent:#4b5563; --accent-2:#374151; --accent-contrast:#fff;
+    --accent-soft:#eef0f3;
+    --line:#e4e7ec; --hover:#eef0f3; --focus:#c3cad4;
+    --danger:#b91c1c; --danger-bg:#fde8e8; --danger-line:#f5c2c2;
+    --ok:#15803d; --ok-bg:#dcfce7; --ok-line:#bbf7d0;
+    --soon:#b45309; --soon-bg:#fef3c7; --soon-line:#fde68a;
+    --exam:#6d28d9; --exam-bg:#ede9fe; --exam-line:#ddd6fe;
+    --points:#0369a1; --points-bg:#e0f2fe; --points-line:#bae6fd;
+    --bar-bg:#e8eaef; --file-bg:#f6f7f9; --drop-bg:#fafbfc; --drop-line:#c3cad4;
+    --chip-bg:#eef0f3; --chip-line:#d5d9df; --chip-text:#374151;
+    --veil:rgba(15,23,42,.45); --toast-bg:#1f2937; --toast-text:#fff;
+    --shadow:0 1px 3px rgba(15,23,42,.07),0 8px 24px rgba(15,23,42,.05);
+    --radius:14px;
+  }
+  [data-theme="dark"]{
+    --bg:#0f1115; --card:#171a20; --text:#e6e8ec; --muted:#9aa1ad;
+    --accent:#94a3b8; --accent-2:#7f8d9f; --accent-contrast:#0f1115;
+    --accent-soft:#22262e;
+    --line:#262b33; --hover:#232830; --focus:#3d4450;
+    --danger:#f87171; --danger-bg:#3a1d1d; --danger-line:#5f2b2b;
+    --ok:#4ade80; --ok-bg:#14301f; --ok-line:#25663f;
+    --soon:#fbbf24; --soon-bg:#382d13; --soon-line:#63521b;
+    --exam:#c4b5fd; --exam-bg:#2a2440; --exam-line:#4a3d6b;
+    --points:#7dd3fc; --points-bg:#0e2a3a; --points-line:#1d4e6b;
+    --bar-bg:#272c35; --file-bg:#1e232b; --drop-bg:#171a20; --drop-line:#3c4350;
+    --chip-bg:#21262f; --chip-line:#343b47; --chip-text:#c9d0da;
+    --veil:rgba(0,0,0,.6); --toast-bg:#e6e8ec; --toast-text:#111827;
+    --shadow:0 1px 3px rgba(0,0,0,.45),0 10px 30px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Segoe UI',system-ui,-apple-system,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
+  header{position:sticky;top:0;z-index:50;background:var(--accent);color:var(--accent-contrast);padding:14px 20px;display:flex;align-items:center;gap:12px;box-shadow:var(--shadow)}
+  header h1{font-size:18px;margin:0;font-weight:700;letter-spacing:.2px}
+  header .sub{font-size:12px;opacity:.8;font-weight:400}
+  .hdr-right{display:flex;align-items:center;gap:10px;margin-left:auto}
+  .wrap{max-width:1100px;margin:0 auto;padding:20px 16px 80px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;display:flex;flex-direction:column;gap:10px;transition:transform .15s,box-shadow .15s}
+  .card:hover{transform:translateY(-2px);box-shadow:var(--shadow)}
+  .card h3{margin:0;font-size:16px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .count{font-size:12px;color:var(--muted);background:var(--accent-soft);padding:2px 8px;border-radius:999px;font-weight:600;white-space:nowrap}
+  .bar{height:6px;border-radius:99px;background:var(--bar-bg);overflow:hidden}
+  .bar i{display:block;height:100%;border-radius:99px;background:var(--accent)}
+  .tag{font-size:12px;padding:3px 10px;border-radius:999px;border:1px solid var(--line);color:var(--muted);display:inline-block}
+  .tag.done{background:var(--ok-bg);color:var(--ok);border-color:var(--ok-line)}
+  .tag.soon{background:var(--soon-bg);color:var(--soon);border-color:var(--soon-line)}
+  .tag.danger{background:var(--danger-bg);color:var(--danger);border-color:var(--danger-line)}
+  .tag.exam{background:var(--exam-bg);color:var(--exam);border-color:var(--exam-line)}
+  .tag.points{background:var(--points-bg);color:var(--points);border-color:var(--points-line)}
+  .btn{border:none;cursor:pointer;font-size:13px;font-weight:600;border-radius:10px;padding:8px 14px;transition:filter .15s,transform .1s;color:var(--accent-contrast);background:linear-gradient(135deg,var(--accent),var(--accent-2))}
+  .btn:active{transform:scale(.97)}
+  .btn.ghost{background:var(--card);color:var(--text);border:1px solid var(--line)}
+  .btn.danger{background:var(--danger-bg);color:var(--danger)}
+  .btn.sm{padding:5px 10px;font-size:12px}
+  .theme-btn{border:none;cursor:pointer;background:rgba(0,0,0,.14);color:inherit;border-radius:10px;padding:6px 10px;font-size:15px;line-height:1}
+  .toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:16px}
+  .search{flex:1;min-width:200px;padding:10px 14px;border:1px solid var(--line);border-radius:10px;font-size:14px;background:var(--card);color:var(--text)}
+  .search:focus{outline:2px solid var(--focus);border-color:var(--accent)}
+  select{padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--text);font-size:14px}
+  #app{display:grid;grid-template-columns:0px 1fr;gap:20px}
+  #app.side-open{grid-template-columns:240px 1fr}
+  aside{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px;align-self:start;position:sticky;top:74px;max-height:calc(100vh - 90px);overflow:auto}
+  aside h2{font-size:13px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin:14px 0 8px}
+  aside ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+  aside li a{display:block;padding:7px 10px;border-radius:8px;text-decoration:none;color:var(--text);font-size:14px;cursor:pointer}
+  aside li a:hover{background:var(--hover)}
+  aside li a.active{background:var(--accent);color:var(--accent-contrast)}
+  #content{min-width:0}
+  .subject-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+  .subject-head h2{margin:0;font-size:22px}
+  .entries{display:flex;flex-direction:column;gap:12px}
+  .entry{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:8px}
+  .entry .meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .entry .title{font-weight:700;font-size:15px}
+  .entry .desc{font-size:14px;color:var(--text);white-space:pre-wrap}
+  .entry .duedate{font-size:13px;color:var(--muted)}
+  .files{margin-top:6px;display:flex;flex-direction:column;gap:6px}
+  .file-row{display:flex;align-items:center;gap:8px;background:var(--file-bg);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:13px}
+  .file-row a{color:var(--accent);text-decoration:none;word-break:break-all;flex:1}
+  .file-row a:hover{text-decoration:underline}
+  .file-row .fsize{color:var(--muted);white-space:nowrap}
+  .file-ico{font-size:15px}
+  .drop{border:2px dashed var(--drop-line);border-radius:10px;padding:18px;text-align:center;color:var(--muted);font-size:13px;cursor:pointer;background:var(--drop-bg);transition:.15s}
+  .drop:hover,.drop.drag{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+  .uploaded-chip{display:inline-flex;align-items:center;gap:6px;background:var(--chip-bg);border:1px solid var(--chip-line);color:var(--chip-text);border-radius:999px;padding:4px 10px;font-size:12px;margin-top:8px}
+  .uploaded-chip button{border:none;background:none;color:inherit;cursor:pointer;font-weight:700}
+  .entry.overdue{border-left:4px solid var(--danger)}
+  .entry.done{opacity:.62}
+  .entry.done .title{text-decoration:line-through}
+  .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .empty{text-align:center;color:var(--muted);padding:40px 10px}
+  .empty .big{font-size:40px;margin-bottom:8px}
+  .modal-bg{position:fixed;inset:0;background:var(--veil);display:none;align-items:flex-start;justify-content:center;padding:40px 16px;z-index:100;overflow:auto}
+  .modal-bg.open{display:flex}
+  .modal{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);width:100%;max-width:520px;padding:22px}
+  .modal h2{margin:0 0 16px;font-size:18px}
+  .field{margin-bottom:14px}
+  .field label{display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:var(--text)}
+  .field input,.field textarea,.field select{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text)}
+  .field textarea{min-height:90px;resize:vertical}
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--toast-bg);color:var(--toast-text);padding:10px 18px;border-radius:10px;font-size:14px;opacity:0;transition:.25s;z-index:200;pointer-events:none}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .sync{font-size:11px;font-weight:600;padding:4px 12px;border-radius:999px;background:rgba(0,0,0,.14);white-space:nowrap}
+  .sync.ok{background:rgba(34,197,94,.28)}
+  .sync.err{background:rgba(239,68,68,.35)}
+  .export-actions{display:flex;gap:10px;margin-top:8px;flex-wrap:wrap}
+  @media(max-width:760px){#app{grid-template-columns:1fr!important}aside{position:static;max-height:none;order:-1}}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Дарья Измайлова</h1>
+    <div class="sub">Задания, заметки и материалы по предметам колледжа</div>
+  </div>
+  <div class="hdr-right">
+    <span id="syncState" class="sync" title="Статус синхронизации">…</span>
+    <button class="theme-btn" id="themeBtn" onclick="toggleTheme()" title="Переключить тему">🌓</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="toolbar">
+    <input id="search" class="search" type="search" placeholder="Поиск по названию, описанию, предмету…" oninput="renderAll()">
+    <select id="statusFilter" onchange="renderAll()">
+      <option value="all">Все статусы</option>
+      <option value="current">Активные</option>
+      <option value="overdue">Просроченные</option>
+      <option value="done">Выполненные</option>
+    </select>
+    <button class="btn" onclick="openModal('subject')">+ Предмет</button>
+    <button class="btn" onclick="openModal('task')">+ Задание</button>
+    <button class="btn ghost sm" onclick="exportData()">Экспорт JSON</button>
+    <button class="btn ghost sm" onclick="toggleSidebar()">☰</button>
+  </div>
+
+  <div id="app" class="side-open">
+    <aside id="sidebar">
+      <h2>Предметы</h2>
+      <ul id="subjectList"></ul>
+      <h2>Фильтры</h2>
+      <ul>
+        <li><a data-filter="upcoming" onclick="setFilter(this,'upcoming')">Ближайшие дедлайны</a></li>
+        <li><a data-filter="overdue" onclick="setFilter(this,'overdue')">Просрочено</a></li>
+        <li><a data-filter="all" onclick="setFilter(this,'all')">Всё</a></li>
+      </ul>
+    </aside>
+
+    <main id="content"></main>
+  </div>
+</div>
+
+<div class="modal-bg" id="modalBg" onclick="if(event.target===this)closeModal()">
+  <div class="modal" id="modal"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+const LS_KEY='college_data_v1';
+let data={subjects:[],tasks:[]};
+let state={view:'all',subject:null,filter:'all',sideOpen:true};
+let pendingFiles=[];
+let syncTimer=null;
+
+const API_PATH='/api/data';
+
+function setSync(text,cls){const el=document.getElementById('syncState');if(el){el.textContent=text;el.className='sync '+(cls||'');}}
+
+async function load(){
+  data.subjects=[];data.tasks=[];
+  const cached=localStorage.getItem(LS_KEY);
+  if(cached){try{data=JSON.parse(cached);data.subjects=data.subjects||[];data.tasks=data.tasks||[];}catch(e){}}
+  try{
+    setSync('Загрузка…');
+    const r=await fetch(API_PATH);
+    if(!r.ok)throw await r.text();
+    const server=await r.json();
+    data={subjects:server.subjects||[],tasks:server.tasks||[]};
+    if(cached){
+      const c=JSON.parse(cached);
+      const cachedIds=new Set((c.tasks||[]).map(t=>t.id));
+      const serverIds=new Set(data.tasks.map(t=>t.id));
+      const localOnly=(c.tasks||[]).filter(t=>!serverIds.has(t.id));
+      const serverOnly=data.tasks.filter(t=>!cachedIds.has(t.id));
+      if(localOnly.length||serverOnly.length){
+        data.tasks=[...data.tasks,...localOnly];
+        save();
+      }
+    }
+    localStorage.setItem(LS_KEY,JSON.stringify(data));
+    setSync('Синхронизировано','ok');
+  }catch(e){
+    setSync('Офлайн (локально)','err');
+  }
+  renderAll();
+}
+
+function save(){
+  localStorage.setItem(LS_KEY,JSON.stringify(data));
+  setSync('Синхронизация…');
+  clearTimeout(syncTimer);
+  syncTimer=setTimeout(async()=>{
+    try{
+      const r=await fetch(API_PATH,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+      if(!r.ok)throw await r.text();
+      setSync('Синхронизировано','ok');
+    }catch(e){setSync('Ошибка синхронизации','err');}
+  },500);
+}
+function toggleTheme(){
+  const html=document.documentElement;
+  const cur=html.getAttribute('data-theme');
+  const next=cur==='dark'?null:'dark';
+  html.setAttribute('data-theme',next||'');
+  localStorage.setItem('college_theme',next||'light');
+}
+function initTheme(){
+  const saved=localStorage.getItem('college_theme');
+  if(saved==='dark')document.documentElement.setAttribute('data-theme','dark');
+}
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),1800);}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
+function fmtSize(b){if(!b)return'';b=+b;if(b<1024)return b+' Б';if(b<1048576)return(b/1024).toFixed(1)+' КБ';return(b/1048576).toFixed(1)+' МБ';}
+function handleFiles(files){pendingFiles=[];const el=document.getElementById('f_uploaded');el.innerHTML='';for(let i=0;i<files.length;i++){(f=>{const reader=new FileReader();reader.onload=function(e){pendingFiles.push({name:f.name,size:fmtSize(f.size),dataUrl:e.target.result});el.innerHTML+=`<span class="uploaded-chip">📎 ${esc(f.name)}<button onclick="this.parentElement.remove();pendingFiles.splice(${pendingFiles.length-1},1)">✕</button></span>`;};reader.readAsDataURL(f);})(files[i]);}}
+function handleDrop(e){const files=e.dataTransfer.files;if(files.length)handleFiles(files);}
+function today(){const d=new Date();return d.toISOString().slice(0,10);}
+function fmtDate(s){if(!s)return'';const d=new Date(s+'T00:00:00');return d.toLocaleDateString('ru-RU',{day:'numeric',month:'long',year:'numeric'});}
+function daysDiff(dateStr){const t=new Date(dateStr+'T00:00:00').getTime();return Math.ceil((t-Date.now())/86400000);}
+function subjectName(id){const s=data.subjects.find(x=>x.id===id);return s?s.name:'Без предмета';}
+function during(s){return s&&s.start&&s.end&&s.start<=today()&&today()<=s.end;}
+
+function taskStatus(t){
+  if(t.done)return'done';
+  if(t.due){
+    const d=daysDiff(t.due);
+    if(d<0)return'overdue';
+    if(d<=3)return'soon';
+  }
+  return'current';
+}
+
+function renderAll(){
+  renderSubjects();
+  if(state.view==='all'&&!state.subject)renderHome();
+  else renderSubject(state.subject);
+}
+
+function renderSubjects(){
+  const q=(document.getElementById('search').value||'').toLowerCase();
+  const list=document.getElementById('subjectList');
+  const counts={};
+  data.tasks.forEach(t=>{counts[t.subject]=counts[t.subject]||0;counts[t.subject]++;});
+  list.innerHTML=data.subjects.map(s=>{
+    const match=q&&!s.name.toLowerCase().includes(q);
+    return `<li><a class="${state.subject===s.id?'active':''}" onclick="openSubject('${s.id}')" title="${match?'Скрыто поиском':''}">${esc(s.name)}<span style="float:right;color:inherit;opacity:.7">${counts[s.id]||0}</span></a></li>`;
+  }).join('')||'<li><span style="color:var(--muted);font-size:13px">Пока пусто</span></li>';
+}
+
+function openSubject(id){state.view='subject';state.subject=id;renderAll();}
+function openHome(){state.view='all';state.subject=null;renderAll();}
+function toggleSidebar(){state.sideOpen=!state.sideOpen;document.getElementById('app').classList.toggle('side-open',state.sideOpen);}
+function setFilter(el,f){state.filter=f;document.querySelectorAll('#sidebar [data-filter]').forEach(a=>a.classList.remove('active'));el.classList.add('active');renderAll();}
+
+function applyFilters(list){
+  const q=(document.getElementById('search').value||'').toLowerCase();
+  const sf=document.getElementById('statusFilter').value;
+  return list.filter(t=>{
+    if(q){
+      const hay=(t.title+' '+t.desc+' '+subjectName(t.subject)).toLowerCase();
+      if(!hay.includes(q))return false;
+    }
+    const st=taskStatus(t);
+    if(sf==='current'&&st==='done')return false;
+    if(sf==='overdue'&&st!=='overdue')return false;
+    if(sf==='done'&&st!=='done')return false;
+    if(state.filter==='overdue'&&st!=='overdue')return false;
+    if(state.filter==='upcoming'&&(!t.due||daysDiff(t.due)>7))return false;
+    return true;
+  }).sort((a,b)=>(a.done-b.done)||((a.due||'9999')<(b.due||'9999')?-1:1));
+}
+
+function entryCard(t){
+  const st=taskStatus(t);
+  const barPct=st==='done'?100:t.due?Math.max(0,Math.min(100,100-Math.round(daysDiff(t.due)/30*100))):0;
+  const dueHtml=t.due?(st==='overdue'?`<span class="tag danger">Просрочено · ${fmtDate(t.due)}</span>`:
+    st==='soon'?`<span class="tag soon">${fmtDate(t.due)} · осталось ${Math.abs(daysDiff(t.due))} дн.</span>`:
+    `<span class="tag">Дедлайн: ${fmtDate(t.due)}</span>`):'<span class="tag">Без срока</span>';
+  return `<div class="entry ${st==='overdue'?'overdue':''} ${st==='done'?'done':''}">
+    <div class="meta">
+      <span class="title">${esc(t.title)}</span>
+      ${t.type==='exam'?'<span class="tag exam">Экзамен</span>':''}
+      ${t.type==='note'?'<span class="tag">Заметка</span>':''}
+      <span class="tag points">${esc(t.points?t.points+' баллов':'')}</span>
+    </div>
+    ${t.desc?`<div class="desc">${esc(t.desc)}</div>`:''}
+    ${t.link?`<div><a href="${esc(t.link)}" target="_blank" rel="noopener">${esc(t.link)}</a></div>`:''}
+    ${t.files&&t.files.length?`<div class="files">${t.files.map(f=>`<div class="file-row"><span class="file-ico">📎</span><a href="${esc(f.dataUrl)}" download="${esc(f.name)}">${esc(f.name)}</a><span class="fsize">${f.size}</span></div>`).join('')}</div>`:''}
+    <div class="row">
+      ${dueHtml}
+      <span class="duedate">${esc(subjectName(t.subject))}</span>
+      <span style="flex:1"></span>
+      <button class="btn sm ghost" onclick="toggleDone('${t.id}')">${t.done?'↩ Вернуть':'✓ Сделано'}</button>
+      <button class="btn sm ghost" onclick="openModal('task','${t.id}')">✎</button>
+      <button class="btn sm danger" onclick="delTask('${t.id}')">✕</button>
+    </div>
+    ${t.type!=='note'?'<div class="bar"><i style="width:'+barPct+'%"></i></div>':''}
+  </div>`;
+}
+
+function entryEmpty(msg){return `<div class="empty"><div class="big">📚</div>${msg}</div>`;}
+
+function renderHome(){
+  const el=document.getElementById('content');
+  const total=data.tasks.length;
+  const done=data.tasks.filter(t=>t.done).length;
+  const overdue=data.tasks.filter(t=>taskStatus(t)==='overdue').length;
+  const upcoming=data.tasks.filter(t=>t.due&&daysDiff(t.due)>=0&&daysDiff(t.due)<=7).length;
+  const pct=total?Math.round(done/total*100):0;
+
+  document.getElementById('sidebar').querySelectorAll('[data-filter]').forEach(a=>a.classList.remove('active'));
+  const groups=[
+    {label:'Просрочено',list:data.tasks.filter(t=>taskStatus(t)==='overdue')},
+    {label:'На этой неделе',list:data.tasks.filter(t=>t.due&&daysDiff(t.due)>=0&&daysDiff(t.due)<=7)},
+    {label:'Без срока',list:data.tasks.filter(t=>!t.due&&!t.done)},
+  ];
+  let html=`<div class="subject-head"><div><h2>Все предметы</h2>
+    <div style="font-size:13px;color:var(--muted)">${total} заданий · выполнено ${done} (${pct}%) · просрочено ${overdue}</div></div>
+    <div class="bar" style="width:220px"><i style="width:${pct}%"></i></div>
+    <div class="row">${['exam','note'].includes(state.filter)?'':''}<button class="btn ghost sm" onclick="openHome()">Сбросить</button></div></div>`;
+
+  const filtered=applyFilters(data.tasks).filter(t=>!(t.done&&t.type!=='note'));
+  const fArr=applyFilters(data.tasks);
+  if(!fArr.length&&state.filter==='all'){
+    html+=entryEmpty('Добавьте первый предмет и задание:<br><br><button class="btn" onclick="openModal(\'subject\')">+ Предмет</button> <button class="btn" onclick="openModal(\'task\')">+ Задание</button>');
+  }else{
+    const shown=filtered.length?filtered:fArr;
+    html+=`<div class="entries">${shown.map(entryCard).join('')||entryEmpty('Ничего не найдено по вашему запросу.')}</div>`;
+  }
+  el.innerHTML=html;
+}
+
+function renderSubject(id){
+  const el=document.getElementById('content');
+  const s=data.subjects.find(x=>x.id===id);
+  if(!s){renderHome();return;}
+  document.querySelectorAll('#sidebar li a').forEach(a=>a.classList.toggle('active',a.getAttribute('onclick')==="openSubject('"+id+"')"));
+  const tasks=data.tasks.filter(t=>t.subject===id);
+  const done=tasks.filter(t=>t.done).length;
+  const pct=tasks.length?Math.round(done/tasks.length*100):0;
+  const active=during(s);
+  let html=`<div class="subject-head">
+    <div><h2>${esc(s.name)}</h2>
+      <div style="font-size:13px;color:var(--muted)">${esc(s.teacher||'')} ${s.room?'· каб. '+esc(s.room):''} ${s.start&&s.end?'· '+esc(s.start)+' — '+esc(s.end):''} ${active?'· <span style="color:var(--ok)">идёт сейчас</span>':''}</div>
+      ${s.notes?`<div style="font-size:13px;color:var(--muted);margin-top:4px">${esc(s.notes)}</div>`:''}
+    </div>
+    <div class="row">
+      <div class="bar" style="width:120px"><i style="width:${pct}%"></i></div>
+      <button class="btn sm ghost" onclick="openModal('subject','${s.id}')">✎</button>
+      <button class="btn sm danger" onclick="delSubject('${s.id}')">✕</button>
+    </div></div>`;
+  const shown=applyFilters(tasks);
+  html+=shown.length?`<div class="entries">${shown.map(entryCard).join('')}</div>`:
+    entryEmpty('Здесь пока пусто. Добавьте задание по предмету:<br><br><button class="btn" onclick="openModal(\'task\')">+ Задание</button>');
+  el.innerHTML=html;
+}
+
+function openModal(kind,id){
+  const bg=document.getElementById('modalBg');
+  const m=document.getElementById('modal');
+  const s=id?data.subjects.find(x=>x.id===id):null;
+  const t=id&&kind==='task'?data.tasks.find(x=>x.id===id):null;
+  pendingFiles=(t&&t.files)?t.files.slice():[];
+  if(kind==='subject'){
+    m.innerHTML=`<h2>${s?'Редактировать предмет':'Новый предмет'}</h2>
+      <div class="field"><label>Название</label><input id="f_name" value="${s?esc(s.name):''}" placeholder="Например: Математика"></div>
+      <div class="field"><label>Преподаватель</label><input id="f_teacher" value="${s?esc(s.teacher||''):''}" placeholder="ФИО преподавателя"></div>
+      <div class="field"><label>Кабинет</label><input id="f_room" value="${s?esc(s.room||''):''}" placeholder="Например: 203"></div>
+      <div class="field"><label>Семестр (даты)</label><div class="row"><input id="f_start" type="date" value="${s?esc(s.start||''):''}" style="flex:1"> — <input id="f_end" type="date" value="${s?esc(s.end||''):''}" style="flex:1"></div></div>
+      <div class="field"><label>Заметки по предмету</label><textarea id="f_notes" placeholder="Расписание, требования…">${s?esc(s.notes||''):''}</textarea></div>
+      <div class="row" style="justify-content:flex-end">
+        <button class="btn ghost" onclick="closeModal()">Отмена</button>
+        <button class="btn" onclick="saveSubject('${s?s.id:''}')">Сохранить</button>
+      </div>`;
+  }else{
+    const opts=data.subjects.map(x=>`<option value="${x.id}" ${t&&t.subject===x.id?'selected':''}>${esc(x.name)}</option>`).join('');
+    m.innerHTML=`<h2>${t?'Редактировать задание':'Новое задание'}</h2>
+      <div class="field"><label>Название</label><input id="f_title" value="${t?esc(t.title):''}" placeholder="Например: Лабораторная №3"></div>
+      <div class="field"><label>Предмет</label><select id="f_subject">${opts||'<option value="">Сначала добавьте предмет</option>'}</select></div>
+      <div class="field"><label>Описание</label><textarea id="f_desc" placeholder="Что нужно сделать, требования…">${t?esc(t.desc||''):''}</textarea></div>
+      <div class="field"><label>Ссылка на материал / файл</label><input id="f_link" value="${t?esc(t.link||''):''}" placeholder="https://…"></div>
+      <div class="field"><label>Дедлайн</label><input id="f_due" type="date" value="${t?esc(t.due||''):''}"></div>
+      <div class="field"><label>Тип</label><select id="f_type">
+        <option value="task" ${t&&t.type==='task'?'selected':''}>Задание</option>
+        <option value="exam" ${t&&t.type==='exam'?'selected':''}>Экзамен / зачёт</option>
+        <option value="note" ${t&&t.type==='note'?'selected':''}>Заметка</option>
+      </select></div>
+      <div class="field"><label>Баллы</label><input id="f_points" type="number" min="0" value="${t?esc(t.points||''):''}" placeholder="Например: 10"></div>
+      <div class="field"><label>Файлы</label>
+        <div class="drop" onclick="document.getElementById('f_file').click()" ondragover="this.classList.add('drag');event.preventDefault()" ondragleave="this.classList.remove('drag')" ondrop="event.preventDefault();handleDrop(event)">Нажмите или перетащите файлы сюда</div>
+        <input id="f_file" type="file" multiple style="display:none" onchange="handleFiles(this.files)">
+        <div id="f_uploaded">${t&&t.files?t.files.map((f,i)=>`<span class="uploaded-chip">📎 ${esc(f.name)}<button onclick="this.parentElement.remove();pendingFiles.splice(${i},1)">✕</button></span>`).join(''):''}</div>
+      </div>
+      <div class="row" style="justify-content:flex-end">
+        <button class="btn ghost" onclick="closeModal()">Отмена</button>
+        <button class="btn" onclick="saveTask('${t?t.id:''}')">Сохранить</button>
+      </div>`;
+  }
+  bg.classList.add('open');
+}
+
+function closeModal(){document.getElementById('modalBg').classList.remove('open');}
+function val(id){return document.getElementById(id).value.trim();}
+
+function saveSubject(id){
+  const name=val('f_name');if(!name){toast('Введите название');return;}
+  const obj={id:id||uid(),name,teacher:val('f_teacher'),room:val('f_room'),start:val('f_start'),end:val('f_end'),notes:val('f_notes')};
+  if(id){const i=data.subjects.findIndex(x=>x.id===id);data.subjects[i]=obj;}
+  else data.subjects.push(obj);
+  save();closeModal();toast('Сохранено');state.subject=obj.id;renderAll();
+}
+
+function saveTask(id){
+  const title=val('f_title');if(!title){toast('Введите название');return;}
+  const subj=val('f_subject');if(!subj){toast('Сначала добавьте предмет');closeModal();return;}
+  const obj={id:id||uid(),title,subject:subj,desc:val('f_desc'),link:val('f_link'),due:val('f_due'),type:val('f_type'),points:val('f_points'),files:pendingFiles.slice(),done:false};
+  if(id){const i=data.tasks.findIndex(x=>x.id===id);obj.done=data.tasks[i].done;data.tasks[i]=obj;}
+  else data.tasks.push(obj);
+  save();closeModal();toast('Сохранено');renderAll();
+}
+
+function toggleDone(id){const t=data.tasks.find(x=>x.id===id);t.done=!t.done;save();renderAll();}
+function delTask(id){if(!confirm('Удалить задание?'))return;data.tasks=data.tasks.filter(x=>x.id!==id);save();renderAll();toast('Удалено');}
+function delSubject(id){
+  if(!confirm('Удалить предмет и все его задания?'))return;
+  data.subjects=data.subjects.filter(x=>x.id!==id);
+  data.tasks=data.tasks.filter(x=>x.subject!==id);
+  save();state.subject=null;state.view='all';renderAll();toast('Удалено');
+}
+
+function exportData(){
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='college-backup-'+today()+'.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast('Экспортировано');
+}
+
+document.addEventListener('DOMContentLoaded',()=>{initTheme();load();renderAll();});
+</script>
+</body>
+</html>
