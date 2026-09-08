@@ -123,6 +123,13 @@
   .pv-body img{max-width:100%;max-height:70vh;border-radius:8px;display:inline-block}
   .pv-body iframe{width:100%;height:70vh;border:1px solid var(--line);border-radius:8px;background:#fff}
   .pv-body pre{text-align:left;white-space:pre-wrap;word-break:break-word;max-height:68vh;overflow:auto;font-size:13px;background:var(--file-bg);border:1px solid var(--line);border-radius:8px;padding:12px;margin:0}
+  .pv-body .xls-wrap{max-height:68vh;overflow:auto;border:1px solid var(--line);border-radius:8px;background:var(--card)}
+  .pv-body table.xls{border-collapse:collapse;font-size:13px;min-width:100%}
+  .pv-body table.xls th,.pv-body table.xls td{border:1px solid var(--line);padding:6px 10px;text-align:left;white-space:nowrap;max-width:320px;overflow:hidden;text-overflow:ellipsis}
+  .pv-body table.xls th{background:var(--accent-soft);font-weight:700;position:sticky;top:0;z-index:1}
+  .xls-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+  .xls-tabs button{border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:8px;padding:5px 12px;font-size:13px;cursor:pointer}
+  .xls-tabs button.active{background:var(--accent);color:var(--accent-contrast);border-color:var(--accent)}
   .sch-toolbar{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
   .sch-grid{display:grid;grid-template-columns:repeat(7,minmax(150px,1fr));gap:8px;overflow-x:auto;padding-bottom:6px}
   .sch-day{background:var(--file-bg);border:1px solid var(--line);border-radius:10px;padding:8px;min-height:120px;display:flex;flex-direction:column;gap:6px}
@@ -496,6 +503,7 @@ function mimeOf(f){
 function isImage(f){return /^image\//.test(mimeOf(f));}
 function isPdf(f){return mimeOf(f)==='application/pdf'||/\.pdf$/i.test(f.name);}
 function isText(f){return /\.(txt|md|csv|log|json|js|html|css|xml|sql|py|ts|java|c|cpp|h|ini|cfg|yml|yaml|sh|bat)$/i.test(f.name);}
+function isXlsx(f){return /\.(xlsx|xls)$/i.test(f.name);}
 function openPure(base64,mime,download){
   const b=atob(base64);const len=b.length;const bytes=new Uint8Array(len);
   for(let i=0;i<len;i++)bytes[i]=b.charCodeAt(i);
@@ -504,6 +512,58 @@ function openPure(base64,mime,download){
   setTimeout(()=>URL.revokeObjectURL(url),60000);
 }
 function closePreview(){document.getElementById('pvBg').classList.remove('open');}
+function renderXlsx(dataUrl,bodyEl){
+  if(!window.XLSX){
+    const s=document.createElement('script');
+    s.src='https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js';
+    s.onload=()=>renderXlsx(dataUrl,bodyEl);
+    s.onerror=()=>{bodyEl.innerHTML='<div style="text-align:center;padding:30px;color:var(--muted)">Не удалось загрузить библиотеку для просмотра таблиц.<br>Проверьте подключение к интернету.</div>';};
+    document.head.appendChild(s);
+    return;
+  }
+  try{
+    const comma=dataUrl.indexOf(',');
+    const b64=dataUrl.slice(comma+1);
+    const bin=atob(b64);
+    const len=bin.length;
+    const bytes=new Uint8Array(len);
+    for(let i=0;i<len;i++)bytes[i]=bin.charCodeAt(i);
+    const wb=XLSX.read(bytes,{type:'array'});
+    const sheets=wb.SheetNames;
+    let cur=0;
+    function sheetToHtml(name){
+      const ws=wb.Sheets[name];
+      const aoa=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+      if(!aoa.length)return'<div style="text-align:center;padding:20px;color:var(--muted)">Лист пуст</div>';
+      const maxCols=Math.max.apply(null,aoa.map(r=>r.length));
+      let h='<table class="xls"><tr>'+Array.from({length:maxCols},(_,c)=>`<th>${esc(c+1)}</th>`).join('')+'</tr>';
+      aoa.forEach(r=>{
+        h+='<tr>';
+        for(let c=0;c<maxCols;c++){
+          let v=r[c];
+          if(v instanceof Date)v=v.toLocaleString('ru-RU');
+          else if(typeof v==='number'&&!Number.isInteger(v))v=v.toLocaleString('ru-RU',{maximumFractionDigits:4});
+          h+=`<td>${esc(v==null?'':String(v))}</td>`;
+        }
+        h+='</tr>';
+      });
+      h+='</table>';
+      return h;
+    }
+    function render(){
+      const tabs=sheets.map((n,i)=>`<button class="${i===cur?'active':''}" onclick="xlsTab(${i})">${esc(n)}</button>`).join('');
+      bodyEl.innerHTML=`<div class="xls-tabs">${tabs}</div><div class="xls-wrap">${sheetToHtml(sheets[cur])}</div>`;
+      window._xlsSheets=sheets;
+      window._xlsCur=cur;
+      window._xlsBody=bodyEl;
+      window._xlsRender=sheetToHtml;
+      window.xlsTab=function(i){window._xlsCur=i;window._xlsBody.innerHTML=`<div class="xls-tabs">${window._xlsSheets.map((n,j)=>`<button class="${j===i?'active':''}" onclick="xlsTab(${j})">${esc(n)}</button>`).join('')}</div><div class="xls-wrap">${window._xlsRender(window._xlsSheets[i])}</div>`;};
+    }
+    render();
+  }catch(e){
+    bodyEl.innerHTML=`<div style="text-align:center;padding:30px;color:var(--danger)">Не удалось прочитать файл: ${esc(e.message||'ошибка')}</div>`;
+  }
+}
 function previewFile(tid,fi){
   const t=data.tasks.find(x=>x.id===tid);
   if(!t||!t.files||fi<0||fi>=t.files.length)return;
@@ -518,6 +578,12 @@ function previewFile(tid,fi){
   else if(isText(f)){
     let txt;try{txt=decodeURIComponent(escape(atob(part)));}catch(e){txt='(не удалось прочитать текст файла)';}
     inner=`<pre>${esc(txt)}</pre>`;
+  }else if(isXlsx(f)){
+    inner=`<div style="text-align:center;padding:30px"><em>Загрузка таблицы…</em></div>`;
+    pv.innerHTML=`<div class="pv-head"><strong>${esc(f.name)}</strong><span style="color:var(--muted);font-size:13px">${esc(f.size)}</span><span style="flex:1"></span><button class="btn ghost sm" onclick="openPure('${part}', '${mimeOf(f)}','${esc(f.name)}')">⬇ Скачать</button><button class="btn sm" onclick="closePreview()">Закрыть</button></div><div class="pv-body">${inner}</div>`;
+    bg.classList.add('open');
+    renderXlsx(f.dataUrl,pv.querySelector('.pv-body'));
+    return;
   }else{
     const blob=atob(part);const len=blob.length;const bytes=new Uint8Array(len);
     for(let i=0;i<len;i++)bytes[i]=blob.charCodeAt(i);
