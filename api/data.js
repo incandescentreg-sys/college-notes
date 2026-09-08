@@ -7,6 +7,12 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   try {
+    await sql`CREATE TABLE IF NOT EXISTS app_data (
+      id TEXT PRIMARY KEY DEFAULT 'main',
+      data JSONB NOT NULL DEFAULT '{}'::jsonb,
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )`;
+
     if (req.method === 'GET') {
       const { rows } = await sql`SELECT data FROM app_data WHERE id = 'main'`;
       if (rows.length === 0) return res.json({ subjects: [], tasks: [] });
