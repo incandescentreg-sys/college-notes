@@ -113,6 +113,27 @@
   .sync.ok{background:rgba(34,197,94,.28)}
   .sync.err{background:rgba(239,68,68,.35)}
   .export-actions{display:flex;gap:10px;margin-top:8px;flex-wrap:wrap}
+  .ov-bg{position:fixed;inset:0;background:var(--veil);display:none;align-items:flex-start;justify-content:center;padding:30px 16px;z-index:110;overflow:auto}
+  .ov-bg.open{display:flex}
+  .ov{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);width:100%;padding:18px}
+  .ov.norm{max-width:860px}
+  .ov.wide{max-width:1100px}
+  .pv-head{display:flex;align-items:center;gap:10px;margin-bottom:14px;font-size:15px;flex-wrap:wrap}
+  .pv-body{text-align:center}
+  .pv-body img{max-width:100%;max-height:70vh;border-radius:8px;display:inline-block}
+  .pv-body iframe{width:100%;height:70vh;border:1px solid var(--line);border-radius:8px;background:#fff}
+  .pv-body pre{text-align:left;white-space:pre-wrap;word-break:break-word;max-height:68vh;overflow:auto;font-size:13px;background:var(--file-bg);border:1px solid var(--line);border-radius:8px;padding:12px;margin:0}
+  .sch-toolbar{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+  .sch-grid{display:grid;grid-template-columns:repeat(7,minmax(150px,1fr));gap:8px;overflow-x:auto;padding-bottom:6px}
+  .sch-day{background:var(--file-bg);border:1px solid var(--line);border-radius:10px;padding:8px;min-height:120px;display:flex;flex-direction:column;gap:6px}
+  .sch-day.today{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+  .sch-day h4{margin:0;font-size:13px;display:flex;justify-content:space-between;align-items:center;color:var(--muted)}
+  .sch-add{border:none;background:var(--accent);color:var(--accent-contrast);width:22px;height:22px;border-radius:6px;cursor:pointer;font-size:15px;line-height:1;font-weight:700}
+  .sch-lesson{position:relative;background:var(--card);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;padding:6px 8px;font-size:12px;cursor:pointer}
+  .sch-lesson .t{font-weight:700;color:var(--accent)}
+  .sch-lesson .rm{color:var(--muted);font-size:11px}
+  .sch-del{position:absolute;top:4px;right:4px;border:none;background:none;color:var(--muted);cursor:pointer;font-size:12px;padding:2px}
+  .sch-del:hover{color:var(--danger)}
   @media(max-width:760px){#app{grid-template-columns:1fr!important}aside{position:static;max-height:none;order:-1}}
 </style>
 </head>
@@ -139,6 +160,7 @@
     </select>
     <button class="btn" onclick="openModal('subject')">+ Предмет</button>
     <button class="btn" onclick="openModal('task')">+ Задание</button>
+    <button class="btn" onclick="openSchedule()">📅 Расписание</button>
     <button class="btn ghost sm" onclick="exportData()">Экспорт JSON</button>
     <button class="btn ghost sm" onclick="toggleSidebar()">☰</button>
   </div>
@@ -162,15 +184,22 @@
 <div class="modal-bg" id="modalBg" onclick="if(event.target===this)closeModal()">
   <div class="modal" id="modal"></div>
 </div>
+<div class="ov-bg" id="pvBg" onclick="if(event.target===this)closePreview()">
+  <div class="ov norm" id="pv"></div>
+</div>
+<div class="ov-bg" id="schBg" onclick="if(event.target===this)closeSch()">
+  <div class="ov wide" id="sch"></div>
+</div>
 <div class="toast" id="toast"></div>
 
 <script>
 'use strict';
 const LS_KEY='college_data_v1';
-let data={subjects:[],tasks:[]};
+let data={subjects:[],tasks:[],schedule:{}};
 let state={view:'all',subject:null,filter:'all',sideOpen:true};
 let pendingFiles=[];
 let syncTimer=null;
+let schWeek={};
 
 const API_PATH='/api/data';
 
@@ -179,13 +208,13 @@ function setSync(text,cls){const el=document.getElementById('syncState');if(el){
 async function load(){
   data.subjects=[];data.tasks=[];
   const cached=localStorage.getItem(LS_KEY);
-  if(cached){try{data=JSON.parse(cached);data.subjects=data.subjects||[];data.tasks=data.tasks||[];}catch(e){}}
+  if(cached){try{data=JSON.parse(cached);data.subjects=data.subjects||[];data.tasks=data.tasks||[];data.schedule=data.schedule||{};}catch(e){}}
   try{
     setSync('Загрузка…');
     const r=await fetch(API_PATH);
     if(!r.ok)throw await r.text();
     const server=await r.json();
-    data={subjects:server.subjects||[],tasks:server.tasks||[]};
+    data={subjects:server.subjects||[],tasks:server.tasks||[],schedule:server.schedule||{}};
     if(cached){
       const c=JSON.parse(cached);
       const cachedIds=new Set((c.tasks||[]).map(t=>t.id));
@@ -305,7 +334,7 @@ function entryCard(t){
     </div>
     ${t.desc?`<div class="desc">${esc(t.desc)}</div>`:''}
     ${t.link?`<div><a href="${esc(t.link)}" target="_blank" rel="noopener">${esc(t.link)}</a></div>`:''}
-    ${t.files&&t.files.length?`<div class="files">${t.files.map(f=>`<div class="file-row"><span class="file-ico">📎</span><a href="${esc(f.dataUrl)}" download="${esc(f.name)}">${esc(f.name)}</a><span class="fsize">${f.size}</span></div>`).join('')}</div>`:''}
+    ${t.files&&t.files.length?`<div class="files">${t.files.map((f,i)=>`<div class="file-row"><span class="file-ico">📎</span><a href="${esc(f.dataUrl)}" download="${esc(f.name)}">${esc(f.name)}</a><span class="fsize">${f.size}</span><button class="btn sm ghost" onclick="previewFile('${t.id}',${i})">👁 Просмотр</button></div>`).join('')}</div>`:''}
     <div class="row">
       ${dueHtml}
       <span class="duedate">${esc(subjectName(t.subject))}</span>
@@ -458,6 +487,124 @@ function exportData(){
   toast('Экспортировано');
 }
 
+function mimeOf(f){
+  const n=(f.name||'').toLowerCase();
+  if(f.type)return f.type;
+  if(/\.(png|jpe?g|gif|webp|bmp|svg|ico|avif)$/.test(n))return'image/'+n.match(/\.(\w+)$/)[1].replace('jpg','jpeg');
+  return'application/octet-stream';
+}
+function isImage(f){return /^image\//.test(mimeOf(f));}
+function isPdf(f){return mimeOf(f)==='application/pdf'||/\.pdf$/i.test(f.name);}
+function isText(f){return /\.(txt|md|csv|log|json|js|html|css|xml|sql|py|ts|java|c|cpp|h|ini|cfg|yml|yaml|sh|bat)$/i.test(f.name);}
+function openPure(base64,mime,download){
+  const b=atob(base64);const len=b.length;const bytes=new Uint8Array(len);
+  for(let i=0;i<len;i++)bytes[i]=b.charCodeAt(i);
+  const url=URL.createObjectURL(new Blob([bytes],{type:mime}));
+  const a=document.createElement('a');a.href=url;a.download=download;a.target='_blank';a.rel='noopener';a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),60000);
+}
+function closePreview(){document.getElementById('pvBg').classList.remove('open');}
+function previewFile(tid,fi){
+  const t=data.tasks.find(x=>x.id===tid);
+  if(!t||!t.files||fi<0||fi>=t.files.length)return;
+  const f=t.files[fi];
+  const comma=f.dataUrl.indexOf(',');
+  const part=f.dataUrl.slice(comma+1);
+  const bg=document.getElementById('pvBg');
+  const pv=document.getElementById('pv');
+  let inner;
+  if(isImage(f))inner=`<img src="${esc(f.dataUrl)}" alt="${esc(f.name)}">`;
+  else if(isPdf(f))inner=`<iframe src="${esc(f.dataUrl)}" title="${esc(f.name)}"></iframe>`;
+  else if(isText(f)){
+    let txt;try{txt=decodeURIComponent(escape(atob(part)));}catch(e){txt='(не удалось прочитать текст файла)';}
+    inner=`<pre>${esc(txt)}</pre>`;
+  }else{
+    const blob=atob(part);const len=blob.length;const bytes=new Uint8Array(len);
+    for(let i=0;i<len;i++)bytes[i]=blob.charCodeAt(i);
+    const url=URL.createObjectURL(new Blob([bytes],{type:mimeOf(f)}));
+    inner=`<iframe src="${url}" title="${esc(f.name)}"></iframe>`;
+    setTimeout(()=>URL.revokeObjectURL(url),60000);
+  }
+  pv.innerHTML=`<div class="pv-head"><strong>${esc(f.name)}</strong><span style="color:var(--muted);font-size:13px">${esc(f.size)}</span><span style="flex:1"></span><button class="btn ghost sm" onclick="openPure('${part}', '${mimeOf(f)}','${esc(f.name)}')">⬇ Скачать</button><button class="btn sm" onclick="closePreview()">Закрыть</button></div><div class="pv-body">${inner}</div>`;
+  bg.classList.add('open');
+}
+
+const SCH_LS=null;
+function startOfWeek(d){const x=new Date(d);const day=(x.getDay()+6)%7;x.setDate(x.getDate()-day);x.setHours(0,0,0,0);return x;}
+function addDays(d,n){const x=new Date(d);x.setDate(x.getDate()+n);return x;}
+function fmtShort(d){return d.toLocaleDateString('ru-RU',{day:'numeric',month:'numeric'});}
+function saveSch(){save();}
+function openSchedule(){renderSch();document.getElementById('schBg').classList.add('open');}
+function closeSch(){document.getElementById('schBg').classList.remove('open');}
+function renderSch(){
+  const el=document.getElementById('sch');
+  const base=data.schedule.base?new Date(data.schedule.base):startOfWeek(new Date());
+  const days=[];
+  for(let i=0;i<7;i++){const d=addDays(base,i);days.push({d,iso:d.toISOString().slice(0,10),label:d.toLocaleDateString('ru-RU',{weekday:'short',day:'numeric',month:'numeric'})});}
+  const todayIso=today();
+  const lessons=data.schedule.lessons||{};
+  let html=`<div class="sch-toolbar">
+    <div><h2 style="margin:0">📅 Расписание на неделю</h2><div style="font-size:13px;color:var(--muted)">${fmtShort(days[0].d)} — ${fmtShort(days[6].d)}</div></div>
+    <div class="row"><button class="btn ghost sm" onclick="schNav(-7)">◀ Прошлая</button><button class="btn ghost sm" onclick="schNav(0)">Текущая неделя</button><button class="btn ghost sm" onclick="schNav(7)">Следующая ▶</button><button class="btn sm" onclick="closeSch()">Закрыть</button></div>
+  </div>`;
+  html+=`<div class="sch-grid">`;
+  days.forEach((day,i)=>{
+    const list=lessons[day.iso]||[];
+    const isToday=day.iso===todayIso;
+    html+=`<div class="sch-day ${isToday?'today':''}"><h4>${esc(day.label)}<button class="sch-add" title="Добавить урок" onclick="schAdd('${day.iso}')">+</button></h4>`;
+    list.sort((a,b)=>a.start.localeCompare(b.start)).forEach((l,j)=>{
+      const subj=data.subjects.find(s=>s.id===l.subject)||{};
+      const name=l.title||subj.name||'Без названия';
+      const room=l.room||subj.room||'';
+      html+=`<div class="sch-lesson" onclick="schEdit('${day.iso}',${j})" title="Изменить">
+        <button class="sch-del" onclick="event.stopPropagation();schDel('${day.iso}','${l.uid}')">✕</button>
+        <div class="t">${l.start?esc(l.start):'—'}${l.end?'–'+esc(l.end):''}</div>
+        <div>${esc(name)}</div>${room?`<div class="rm">каб. ${esc(room)}</div>`:''}</div>`;
+    });
+    if(!list.length)html+=`<div style="font-size:12px;color:var(--muted)">Нет пар</div>`;
+    html+=`</div>`;
+  });
+  html+=`</div>`;
+  el.innerHTML=html;
+}
+function schNav(delta){
+  const base=data.schedule.base?new Date(data.schedule.base):startOfWeek(new Date());
+  data.schedule.base=addDays(base,delta).toISOString().slice(0,10);
+  saveSch();renderSch();
+}
+function schEnsure(day){if(!data.schedule.lessons)data.schedule.lessons={};if(!data.schedule.lessons[day])data.schedule.lessons[day]=[];return data.schedule.lessons[day];}
+function schAdd(day){
+  const t={uid:uid(),start:'',end:'',title:'',subject:'',room:''};
+  schEnsure(day).push(t);
+  saveSch();renderSch();
+}
+function schDel(day,uid){data.schedule.lessons[day]=(data.schedule.lessons[day]||[]).filter(l=>l.uid!==uid);saveSch();renderSch();}
+function schEdit(day,idx){
+  const list=schEnsure(day);
+  const l=list[idx]||{uid:uid(),start:'',end:'',title:'',subject:'',room:''};
+  const subjOpts=data.subjects.map(s=>`<option value="${s.id}" ${l.subject===s.id?'selected':''}>${esc(s.name)}</option>`).join('');
+  const bg=document.getElementById('schBg');
+  const el=document.getElementById('sch');
+  const prev=el.innerHTML;
+  el.innerHTML=`<div class="sch-toolbar"><h2 style="margin:0">Урок · ${esc(day)}</h2><button class="btn ghost sm" onclick="renderSch()">← Назад</button></div>
+    <div class="field"><label>Название</label><input id="sl_title" value="${esc(l.title||'')}" placeholder="Например: Математика"></div>
+    <div class="field"><label>Предмет</label><select id="sl_subject"><option value="">— без предмета —</option>${subjOpts||''}</select></div>
+    <div class="field"><label>Время</label><div class="row"><input id="sl_start" type="time" value="${esc(l.start||'')}" style="flex:1"><span>—</span><input id="sl_end" type="time" value="${esc(l.end||'')}" style="flex:1"></div></div>
+    <div class="field"><label>Кабинет</label><input id="sl_room" value="${esc(l.room||'')}" placeholder="Например: 203"></div>
+    <div class="row" style="justify-content:flex-end"><button class="btn ghost" onclick="renderSch()">Отмена</button><button class="btn" onclick="schSave('${day}','${l.uid}')">Сохранить</button></div>`;
+}
+function schSave(day,uid){
+  const list=schEnsure(day);
+  const l=list.find(x=>x.uid===uid);
+  if(!l)return;
+  l.title=document.getElementById('sl_title').value.trim();
+  l.subject=document.getElementById('sl_subject').value;
+  l.start=document.getElementById('sl_start').value;
+  l.end=document.getElementById('sl_end').value;
+  l.room=document.getElementById('sl_room').value.trim();
+  if(!l.title&&!l.subject&&!l.start&&!l.room){schDel(day,uid);return;}
+  saveSch();renderSch();
+}
 document.addEventListener('DOMContentLoaded',()=>{initTheme();load();renderAll();});
 </script>
 </body>
