@@ -241,7 +241,7 @@ async function load(){
         save();
       }
     }
-    localStorage.setItem(LS_KEY,JSON.stringify(data));
+    try{localStorage.setItem(LS_KEY,JSON.stringify(data));}catch(e){}
     setSync('Синхронизировано','ok');
   }catch(e){
     setSync('Офлайн (локально)','err');
@@ -249,8 +249,13 @@ async function load(){
   renderAll();
 }
 
+function storeLocal(){
+  try{localStorage.setItem(LS_KEY,JSON.stringify(data));return true;}
+  catch(e){setSync('Хранилище переполнено','err');return false;}
+}
 function save(){
-  localStorage.setItem(LS_KEY,JSON.stringify(data));
+  const stored=storeLocal();
+  if(!stored)toast('Файлы слишком большие — сохранится только на этой сессии');
   setSync('Синхронизация…');
   clearTimeout(syncTimer);
   syncTimer=setTimeout(async()=>{
@@ -276,7 +281,7 @@ function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 function fmtSize(b){if(!b)return'';b=+b;if(b<1024)return b+' Б';if(b<1048576)return(b/1024).toFixed(1)+' КБ';return(b/1048576).toFixed(1)+' МБ';}
-function handleFiles(files){pendingFiles=[];const el=document.getElementById('f_uploaded');el.innerHTML='';for(let i=0;i<files.length;i++){(f=>{const reader=new FileReader();reader.onload=function(e){pendingFiles.push({name:f.name,size:fmtSize(f.size),dataUrl:e.target.result});el.innerHTML+=`<span class="uploaded-chip">📎 ${esc(f.name)}<button onclick="this.parentElement.remove();pendingFiles.splice(${pendingFiles.length-1},1)">✕</button></span>`;};reader.readAsDataURL(f);})(files[i]);}}
+function handleFiles(files){pendingFiles=[];const el=document.getElementById('f_uploaded');el.innerHTML='';for(let i=0;i<files.length;i++){(f=>{const reader=new FileReader();reader.onload=function(e){if(f.size>5*1024*1024)toast('Файл больше 5 МБ — может не сохраниться');pendingFiles.push({name:f.name,size:fmtSize(f.size),dataUrl:e.target.result});el.innerHTML+=`<span class="uploaded-chip">📎 ${esc(f.name)}<button onclick="this.parentElement.remove();pendingFiles.splice(${pendingFiles.length-1},1)">✕</button></span>`;};reader.readAsDataURL(f);})(files[i]);}}
 function handleDrop(e){const files=e.dataTransfer.files;if(files.length)handleFiles(files);}
 function today(){const d=new Date();return d.toISOString().slice(0,10);}
 function fmtDate(s){if(!s)return'';const d=new Date(s+'T00:00:00');return d.toLocaleDateString('ru-RU',{day:'numeric',month:'long',year:'numeric'});}
