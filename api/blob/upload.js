@@ -1,22 +1,24 @@
 import crypto from 'crypto';
 
-export const config = { runtime: 'nodejs' };
+export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-export default async function handler(request) {
   try {
-    const body = await request.json();
-    const pathname = (body && body.payload && body.payload.pathname) || 'file';
+    let bodyStr = '';
+    for await (const chunk of req) bodyStr += chunk;
+    const body = JSON.parse(bodyStr);
+    const pathname = (body.payload && body.payload.pathname) || 'file';
 
     const rw = process.env.BLOB_READ_WRITE_TOKEN;
-    if (!rw) {
-      return Response.json({ error: 'BLOB_READ_WRITE_TOKEN is not set' }, { status: 500 });
-    }
+    if (!rw) return res.status(500).json({ error: 'BLOB_READ_WRITE_TOKEN is not set' });
 
     const parts = rw.split('_');
     const storeId = parts[3] || '';
-    if (!storeId) {
-      return Response.json({ error: 'Could not parse store id from token' }, { status: 500 });
-    }
+    if (!storeId) return res.status(500).json({ error: 'Could not parse store id from token' });
 
     const payloadObj = {
       pathname,
@@ -39,12 +41,9 @@ export default async function handler(request) {
     const sig = crypto.createHmac('sha256', rw).update(payload).digest('hex');
     const clientToken = `vercel_blob_client_${storeId}_${Buffer.from(sig + '.' + payload).toString('base64')}`;
 
-    return Response.json({ clientToken });
+    return res.status(200).json({ clientToken });
   } catch (error) {
     console.error('blob token error:', error);
-    return Response.json(
-      { error: error.message || 'Failed to generate token' },
-      { status: 400 },
-    );
+    return res.status(400).json({ error: error.message || 'Failed to generate token' });
   }
 }
