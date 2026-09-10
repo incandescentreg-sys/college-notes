@@ -214,7 +214,6 @@ let data={subjects:[],tasks:[],schedule:{}};
 let state={view:'all',subject:null,filter:'all',sideOpen:true};
 let pendingFiles=[];
 let syncTimer=null;
-let schWeek={};
 
 const API_PATH='/api/data';
 
@@ -254,8 +253,7 @@ function storeLocal(){
   catch(e){setSync('Хранилище переполнено','err');return false;}
 }
 function save(){
-  const stored=storeLocal();
-  if(!stored)toast('Файлы слишком большие — сохранится только на этой сессии');
+  storeLocal();
   setSync('Синхронизация…');
   clearTimeout(syncTimer);
   syncTimer=setTimeout(async()=>{
@@ -281,7 +279,15 @@ function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 function fmtSize(b){if(!b)return'';b=+b;if(b<1024)return b+' Б';if(b<1048576)return(b/1024).toFixed(1)+' КБ';return(b/1048576).toFixed(1)+' МБ';}
-function handleFiles(files){pendingFiles=[];const el=document.getElementById('f_uploaded');el.innerHTML='';for(let i=0;i<files.length;i++){(f=>{const reader=new FileReader();reader.onload=function(e){if(f.size>5*1024*1024)toast('Файл больше 5 МБ — может не сохраниться');pendingFiles.push({name:f.name,size:fmtSize(f.size),dataUrl:e.target.result});el.innerHTML+=`<span class="uploaded-chip">📎 ${esc(f.name)}<button onclick="this.parentElement.remove();pendingFiles.splice(${pendingFiles.length-1},1)">✕</button></span>`;};reader.readAsDataURL(f);})(files[i]);}}
+async function uploadFile(file){
+  const t=await fetch('/api/blob/upload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'blob.generate-client-token',payload:{pathname:file.name,clientPayload:null,multipart:false}})});
+  if(!t.ok)throw new Error(await t.text());
+  const{clientToken}=await t.json();
+  const r=await fetch('https://vercel.com/api/blob/?pathname='+encodeURIComponent(file.name),{method:'PUT',body:file,headers:{authorization:'Bearer '+clientToken,'x-vercel-blob-access':'public','x-api-version':'12'}});
+  if(!r.ok){let e;try{e=(await r.json()).error?.message}catch{}throw new Error(e||await r.text());}
+  return r.json();
+}
+function handleFiles(files){pendingFiles=[];const el=document.getElementById('f_uploaded');el.innerHTML='';for(let i=0;i<files.length;i++){(f=>{const chip=document.createElement('span');chip.className='uploaded-chip';const id='chip_'+uid();chip.id=id;chip.innerHTML=`⏳ ${esc(f.name)}<button onclick="document.getElementById('${id}').remove()">✕</button>`;el.appendChild(chip);const inp=document.getElementById('f_file');if(inp)inp.disabled=true;uploadFile(f).then(r=>{if(!document.getElementById(id))return;pendingFiles.push({name:f.name,size:fmtSize(f.size),url:r.url,pathname:r.pathname,contentType:r.contentType,downloadUrl:r.downloadUrl});chip.innerHTML=`📎 ${esc(f.name)}<span style="font-size:11px;color:var(--muted);margin:0 4px">${fmtSize(f.size)}</span><button onclick="var i=pendingFiles.findIndex(x=>x.name===${JSON.stringify(f.name)});if(i>=0)pendingFiles.splice(i,1);this.parentElement.remove()">✕</button>`;if(inp)inp.disabled=false;}).catch(e=>{chip.innerHTML=`❌ ${esc(f.name)} — ${esc(e.message||'ошибка')}<button onclick="this.parentElement.remove()">✕</button>`;if(inp)inp.disabled=false;});})(files[i]);}}
 function handleDrop(e){const files=e.dataTransfer.files;if(files.length)handleFiles(files);}
 function today(){const d=new Date();return d.toISOString().slice(0,10);}
 function fmtDate(s){if(!s)return'';const d=new Date(s+'T00:00:00');return d.toLocaleDateString('ru-RU',{day:'numeric',month:'long',year:'numeric'});}
@@ -354,7 +360,7 @@ function entryCard(t){
     </div>
     ${t.desc?`<div class="desc">${esc(t.desc)}</div>`:''}
     ${t.link?`<div><a href="${esc(t.link)}" target="_blank" rel="noopener">${esc(t.link)}</a></div>`:''}
-    ${t.files&&t.files.length?`<div class="files">${t.files.map((f,i)=>`<div class="file-row"><span class="file-ico">📎</span><a href="${esc(f.dataUrl)}" download="${esc(f.name)}">${esc(f.name)}</a><span class="fsize">${f.size}</span><button class="btn sm ghost" onclick="previewFile('${t.id}',${i})">👁 Просмотр</button></div>`).join('')}</div>`:''}
+    ${t.files&&t.files.length?`<div class="files">${t.files.map((f,i)=>`<div class="file-row"><span class="file-ico">📎</span><a href="${esc(f.url||f.dataUrl||'#')}" target="_blank" rel="noopener">${esc(f.name)}</a><span class="fsize">${f.size}</span><button class="btn sm ghost" onclick="previewFile('${t.id}',${i})">👁 Просмотр</button></div>`).join('')}</div>`:''}
     <div class="row">
       ${dueHtml}
       <span class="duedate">${esc(subjectName(t.subject))}</span>
@@ -458,7 +464,7 @@ function openModal(kind,id){
       <div class="field"><label>Файлы</label>
         <div class="drop" onclick="document.getElementById('f_file').click()" ondragover="this.classList.add('drag');event.preventDefault()" ondragleave="this.classList.remove('drag')" ondrop="event.preventDefault();handleDrop(event)">Нажмите или перетащите файлы сюда</div>
         <input id="f_file" type="file" multiple style="display:none" onchange="handleFiles(this.files)">
-        <div id="f_uploaded">${t&&t.files?t.files.map((f,i)=>`<span class="uploaded-chip">📎 ${esc(f.name)}<button onclick="this.parentElement.remove();pendingFiles.splice(${i},1)">✕</button></span>`).join(''):''}</div>
+        <div id="f_uploaded">${t&&t.files?t.files.map((f,i)=>`<span class="uploaded-chip">📎 ${esc(f.name)}<span style="font-size:11px;color:var(--muted);margin:0 4px">${f.size}</span><button onclick="this.parentElement.remove();pendingFiles.splice(${i},1)">✕</button></span>`).join(''):''}</div>
       </div>
       <div class="row" style="justify-content:flex-end">
         <button class="btn ghost" onclick="closeModal()">Отмена</button>
@@ -517,12 +523,8 @@ function isImage(f){return /^image\//.test(mimeOf(f));}
 function isPdf(f){return mimeOf(f)==='application/pdf'||/\.pdf$/i.test(f.name);}
 function isText(f){return /\.(txt|md|csv|log|json|js|html|css|xml|sql|py|ts|java|c|cpp|h|ini|cfg|yml|yaml|sh|bat)$/i.test(f.name);}
 function isXlsx(f){return /\.(xlsx|xls)$/i.test(f.name);}
-function openPure(base64,mime,download){
-  const b=atob(base64);const len=b.length;const bytes=new Uint8Array(len);
-  for(let i=0;i<len;i++)bytes[i]=b.charCodeAt(i);
-  const url=URL.createObjectURL(new Blob([bytes],{type:mime}));
-  const a=document.createElement('a');a.href=url;a.download=download;a.target='_blank';a.rel='noopener';a.click();
-  setTimeout(()=>URL.revokeObjectURL(url),60000);
+function openPure(url,name){
+  const a=document.createElement('a');a.href=url;a.download=name||'file';a.target='_blank';a.rel='noopener';a.click();
 }
 function closePreview(){document.getElementById('pvBg').classList.remove('open');}
 function loadScript(srcs,ok,err){
@@ -540,7 +542,12 @@ function loadScript(srcs,ok,err){
   s.onerror=()=>{clearTimeout(to);tryNext();};
   document.head.appendChild(s);
 }
-function renderPdf(dataUrl,bodyEl){
+async function fetchBytes(url){
+  const r=await fetch(url);
+  if(!r.ok)throw new Error('HTTP '+r.status);
+  return r.arrayBuffer();
+}
+function renderPdf(url,bodyEl){
   bodyEl.innerHTML='';
   const box=document.createElement('div');
   box.className='pdf-box';
@@ -570,8 +577,6 @@ function renderPdf(dataUrl,bodyEl){
     if(!pdf)return;
     pdf.getPage(pageNum).then(pg=>{
       const vp=pg.getViewport({scale:scale*zoom});
-      canvas.width=vp.width;
-      canvas.height=vp.height;
       const dpr=window.devicePixelRatio||1;
       canvas.width=Math.floor(vp.width*dpr);
       canvas.height=Math.floor(vp.height*dpr);
@@ -611,110 +616,103 @@ function renderPdf(dataUrl,bodyEl){
       ()=>{box.innerHTML='<div style="text-align:center;padding:30px;color:var(--muted)">Не удалось загрузить просмотрщик PDF.<br>Проверьте подключение к интернету.</div>';}
     );
   }else loadPdf();
-  function loadPdf(){
-    const comma=dataUrl.indexOf(',');
-    const b64=dataUrl.slice(comma+1);
-    const bin=atob(b64);
-    const len=bin.length;
-    const bytes=new Uint8Array(len);
-    for(let i=0;i<len;i++)bytes[i]=bin.charCodeAt(i);
-    pdfjsLib.getDocument({data:bytes}).promise.then(p=>{
-      pdf=p;
+  async function loadPdf(){
+    try{
+      const bytes=await fetchBytes(url);
+      pdf=await pdfjsLib.getDocument({data:bytes}).promise;
       totalEl.textContent=pdf.numPages;
       show(1);
-    }).catch(err=>{
-      box.innerHTML='<div style="text-align:center;padding:30px;color:var(--danger)">Не удалось открыть PDF: '+esc(err.message||'ошибка')+'</div>';
-    });
+    }catch(e){
+      box.innerHTML='<div style="text-align:center;padding:30px;color:var(--danger)">Не удалось открыть PDF: '+esc(e.message||'ошибка')+'</div>';
+    }
   }
 }
-function renderXlsx(dataUrl,bodyEl){
+function renderXlsx(url,bodyEl){
   if(!window.XLSX){
     loadScript(
       ['https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
        'https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js',
        'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js'],
-      ()=>renderXlsx(dataUrl,bodyEl),
+      ()=>renderXlsx(url,bodyEl),
       ()=>{bodyEl.innerHTML='<div style="text-align:center;padding:30px;color:var(--muted)">Не удалось загрузить библиотеку для просмотра таблиц.<br>Проверьте подключение к интернету.</div>';}
     );
     return;
   }
-  try{
-    const comma=dataUrl.indexOf(',');
-    const b64=dataUrl.slice(comma+1);
-    const bin=atob(b64);
-    const len=bin.length;
-    const bytes=new Uint8Array(len);
-    for(let i=0;i<len;i++)bytes[i]=bin.charCodeAt(i);
-    const wb=XLSX.read(bytes,{type:'array'});
-    const sheets=wb.SheetNames;
-    let cur=0;
-    function sheetToHtml(name){
-      const ws=wb.Sheets[name];
-      const aoa=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
-      if(!aoa.length)return'<div style="text-align:center;padding:20px;color:var(--muted)">Лист пуст</div>';
-      const maxCols=Math.max.apply(null,aoa.map(r=>r.length));
-      let h='<table class="xls"><tr>'+Array.from({length:maxCols},(_,c)=>`<th>${esc(c+1)}</th>`).join('')+'</tr>';
-      aoa.forEach(r=>{
-        h+='<tr>';
-        for(let c=0;c<maxCols;c++){
-          let v=r[c];
-          if(v instanceof Date)v=v.toLocaleString('ru-RU');
-          else if(typeof v==='number'&&!Number.isInteger(v))v=v.toLocaleString('ru-RU',{maximumFractionDigits:4});
-          h+=`<td>${esc(v==null?'':String(v))}</td>`;
-        }
-        h+='</tr>';
-      });
-      h+='</table>';
-      return h;
+  (async()=>{
+    try{
+      const bytes=await fetchBytes(url);
+      const wb=XLSX.read(new Uint8Array(bytes),{type:'array'});
+      const sheets=wb.SheetNames;
+      let cur=0;
+      function sheetToHtml(name){
+        const ws=wb.Sheets[name];
+        const aoa=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+        if(!aoa.length)return'<div style="text-align:center;padding:20px;color:var(--muted)">Лист пуст</div>';
+        const maxCols=Math.max.apply(null,aoa.map(r=>r.length));
+        let h='<table class="xls"><tr>'+Array.from({length:maxCols},(_,c)=>`<th>${esc(c+1)}</th>`).join('')+'</tr>';
+        aoa.forEach(r=>{
+          h+='<tr>';
+          for(let c=0;c<maxCols;c++){
+            let v=r[c];
+            if(v instanceof Date)v=v.toLocaleString('ru-RU');
+            else if(typeof v==='number'&&!Number.isInteger(v))v=v.toLocaleString('ru-RU',{maximumFractionDigits:4});
+            h+=`<td>${esc(v==null?'':String(v))}</td>`;
+          }
+          h+='</tr>';
+        });
+        h+='</table>';
+        return h;
+      }
+      function render(){
+        const tabs=sheets.map((n,i)=>`<button class="${i===cur?'active':''}" onclick="xlsTab(${i})">${esc(n)}</button>`).join('');
+        bodyEl.innerHTML=`<div class="xls-tabs">${tabs}</div><div class="xls-wrap">${sheetToHtml(sheets[cur])}</div>`;
+        window._xlsSheets=sheets;
+        window._xlsCur=cur;
+        window._xlsBody=bodyEl;
+        window._xlsRender=sheetToHtml;
+        window.xlsTab=function(i){window._xlsCur=i;window._xlsBody.innerHTML=`<div class="xls-tabs">${window._xlsSheets.map((n,j)=>`<button class="${j===i?'active':''}" onclick="xlsTab(${j})">${esc(n)}</button>`).join('')}</div><div class="xls-wrap">${window._xlsRender(window._xlsSheets[i])}</div>`;};
+      }
+      render();
+    }catch(e){
+      bodyEl.innerHTML=`<div style="text-align:center;padding:30px;color:var(--danger)">Не удалось прочитать файл: ${esc(e.message||'ошибка')}</div>`;
     }
-    function render(){
-      const tabs=sheets.map((n,i)=>`<button class="${i===cur?'active':''}" onclick="xlsTab(${i})">${esc(n)}</button>`).join('');
-      bodyEl.innerHTML=`<div class="xls-tabs">${tabs}</div><div class="xls-wrap">${sheetToHtml(sheets[cur])}</div>`;
-      window._xlsSheets=sheets;
-      window._xlsCur=cur;
-      window._xlsBody=bodyEl;
-      window._xlsRender=sheetToHtml;
-      window.xlsTab=function(i){window._xlsCur=i;window._xlsBody.innerHTML=`<div class="xls-tabs">${window._xlsSheets.map((n,j)=>`<button class="${j===i?'active':''}" onclick="xlsTab(${j})">${esc(n)}</button>`).join('')}</div><div class="xls-wrap">${window._xlsRender(window._xlsSheets[i])}</div>`;};
-    }
-    render();
-  }catch(e){
-    bodyEl.innerHTML=`<div style="text-align:center;padding:30px;color:var(--danger)">Не удалось прочитать файл: ${esc(e.message||'ошибка')}</div>`;
-  }
+  })();
 }
 function previewFile(tid,fi){
   const t=data.tasks.find(x=>x.id===tid);
   if(!t||!t.files||fi<0||fi>=t.files.length)return;
   const f=t.files[fi];
-  const comma=f.dataUrl.indexOf(',');
-  const part=f.dataUrl.slice(comma+1);
+  const u=f.url||f.downloadUrl||'';
+  if(!u){toast('Файл недоступен');return;}
   const bg=document.getElementById('pvBg');
   const pv=document.getElementById('pv');
   let inner;
-  if(isImage(f))inner=`<img src="${esc(f.dataUrl)}" alt="${esc(f.name)}">`;
+  if(isImage(f))inner=`<img src="${esc(u)}" alt="${esc(f.name)}">`;
   else if(isPdf(f)){
     inner=`<div style="text-align:center;padding:30px"><em>Загрузка PDF…</em></div>`;
-    pv.innerHTML=`<div class="pv-head"><strong>${esc(f.name)}</strong><span style="color:var(--muted);font-size:13px">${esc(f.size)}</span><span style="flex:1"></span><button class="btn ghost sm" onclick="openPure('${part}', '${mimeOf(f)}','${esc(f.name)}')">⬇ Скачать</button><button class="btn sm" onclick="closePreview()">Закрыть</button></div><div class="pv-body">${inner}</div>`;
+    pv.innerHTML=`<div class="pv-head"><strong>${esc(f.name)}</strong><span style="color:var(--muted);font-size:13px">${esc(f.size)}</span><span style="flex:1"></span><button class="btn ghost sm" onclick="openPure('${esc(u)}','${esc(f.name)}')">⬇ Скачать</button><button class="btn sm" onclick="closePreview()">Закрыть</button></div><div class="pv-body">${inner}</div>`;
     bg.classList.add('open');
-    renderPdf(f.dataUrl,pv.querySelector('.pv-body'));
+    renderPdf(u,pv.querySelector('.pv-body'));
     return;
   }
   else if(isText(f)){
-    let txt;try{txt=decodeURIComponent(escape(atob(part)));}catch(e){txt='(не удалось прочитать текст файла)';}
-    inner=`<pre>${esc(txt)}</pre>`;
+    inner=`<div style="text-align:center;padding:30px"><em>Загрузка…</em></div>`;
+    pv.innerHTML=`<div class="pv-head"><strong>${esc(f.name)}</strong><span style="color:var(--muted);font-size:13px">${esc(f.size)}</span><span style="flex:1"></span><button class="btn ghost sm" onclick="openPure('${esc(u)}','${esc(f.name)}')">⬇ Скачать</button><button class="btn sm" onclick="closePreview()">Закрыть</button></div><div class="pv-body">${inner}</div>`;
+    bg.classList.add('open');
+    fetch(u).then(r=>r.text()).then(txt=>{pv.querySelector('.pv-body').innerHTML=`<pre>${esc(txt)}</pre>`;}).catch(()=>{pv.querySelector('.pv-body').innerHTML='<div style="text-align:center;padding:30px;color:var(--danger)">Не удалось загрузить файл</div>';});
+    return;
   }else if(isXlsx(f)){
     inner=`<div style="text-align:center;padding:30px"><em>Загрузка таблицы…</em></div>`;
-    pv.innerHTML=`<div class="pv-head"><strong>${esc(f.name)}</strong><span style="color:var(--muted);font-size:13px">${esc(f.size)}</span><span style="flex:1"></span><button class="btn ghost sm" onclick="openPure('${part}', '${mimeOf(f)}','${esc(f.name)}')">⬇ Скачать</button><button class="btn sm" onclick="closePreview()">Закрыть</button></div><div class="pv-body">${inner}</div>`;
+    pv.innerHTML=`<div class="pv-head"><strong>${esc(f.name)}</strong><span style="color:var(--muted);font-size:13px">${esc(f.size)}</span><span style="flex:1"></span><button class="btn ghost sm" onclick="openPure('${esc(u)}','${esc(f.name)}')">⬇ Скачать</button><button class="btn sm" onclick="closePreview()">Закрыть</button></div><div class="pv-body">${inner}</div>`;
     bg.classList.add('open');
-    renderXlsx(f.dataUrl,pv.querySelector('.pv-body'));
+    renderXlsx(u,pv.querySelector('.pv-body'));
     return;
   }else{
-    const blob=atob(part);const len=blob.length;const bytes=new Uint8Array(len);
-    for(let i=0;i<len;i++)bytes[i]=blob.charCodeAt(i);
-    const url=URL.createObjectURL(new Blob([bytes],{type:mimeOf(f)}));
-    inner=`<iframe src="${url}" title="${esc(f.name)}"></iframe>`;
-    setTimeout(()=>URL.revokeObjectURL(url),60000);
+    const m=mimeOf(f);
+    inner=m.startsWith('video/')||m.startsWith('audio/')?`<video src="${esc(u)}" controls style="max-width:100%;max-height:70vh;border-radius:8px"></video>`:
+          `<iframe src="${esc(u)}" title="${esc(f.name)}" style="width:100%;height:70vh;border:1px solid var(--line);border-radius:8px;background:#fff"></iframe>`;
   }
-  pv.innerHTML=`<div class="pv-head"><strong>${esc(f.name)}</strong><span style="color:var(--muted);font-size:13px">${esc(f.size)}</span><span style="flex:1"></span><button class="btn ghost sm" onclick="openPure('${part}', '${mimeOf(f)}','${esc(f.name)}')">⬇ Скачать</button><button class="btn sm" onclick="closePreview()">Закрыть</button></div><div class="pv-body">${inner}</div>`;
+  pv.innerHTML=`<div class="pv-head"><strong>${esc(f.name)}</strong><span style="color:var(--muted);font-size:13px">${esc(f.size)}</span><span style="flex:1"></span><button class="btn ghost sm" onclick="openPure('${esc(u)}','${esc(f.name)}')">⬇ Скачать</button><button class="btn sm" onclick="closePreview()">Закрыть</button></div><div class="pv-body">${inner}</div>`;
   bg.classList.add('open');
 }
 
