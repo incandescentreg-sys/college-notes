@@ -281,7 +281,7 @@ function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2
 function fmtSize(b){if(!b)return'';b=+b;if(b<1024)return b+' Б';if(b<1048576)return(b/1024).toFixed(1)+' КБ';return(b/1048576).toFixed(1)+' МБ';}
 async function uploadFile(file){
   const t=await fetch('/api/blob/upload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'blob.generate-client-token',payload:{pathname:file.name,clientPayload:null,multipart:false}})});
-  if(!t.ok)throw new Error(await t.text());
+  if(!t.ok){let msg;try{msg=(await t.json()).error}catch{msg=await t.text()}throw new Error(msg||'Не удалось получить токен');}
   const{clientToken}=await t.json();
   const r=await fetch('https://vercel.com/api/blob/?pathname='+encodeURIComponent(file.name),{method:'PUT',body:file,headers:{authorization:'Bearer '+clientToken,'x-vercel-blob-access':'public','x-api-version':'12'}});
   if(!r.ok){let e;try{e=(await r.json()).error?.message}catch{}throw new Error(e||await r.text());}
