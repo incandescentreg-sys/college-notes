@@ -1,3 +1,5 @@
+import crypto from 'crypto';
+
 export const config = { runtime: 'nodejs' };
 
 export default async function handler(request) {
@@ -20,19 +22,11 @@ export default async function handler(request) {
       pathname,
       allowedContentTypes: [
         'application/pdf',
-        'image/png',
-        'image/jpeg',
-        'image/gif',
-        'image/webp',
-        'image/svg+xml',
+        'image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml',
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'application/vnd.ms-excel',
-        'text/plain',
-        'text/markdown',
-        'text/csv',
-        'application/json',
-        'application/zip',
-        'application/x-zip-compressed',
+        'text/plain', 'text/markdown', 'text/csv', 'application/json',
+        'application/zip', 'application/x-zip-compressed',
         'application/msword',
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       ],
@@ -41,23 +35,11 @@ export default async function handler(request) {
       validUntil: Date.now() + 60 * 60 * 1000,
     };
 
-    const payload = btoa(JSON.stringify(payloadObj));
+    const payload = Buffer.from(JSON.stringify(payloadObj)).toString('base64');
+    const sig = crypto.createHmac('sha256', rw).update(payload).digest('hex');
+    const clientToken = `vercel_blob_client_${storeId}_${Buffer.from(sig + '.' + payload).toString('base64')}`;
 
-    const key = await crypto.subtle.importKey(
-      'raw',
-      new TextEncoder().encode(rw),
-      { name: 'HMAC', hash: 'SHA-256' },
-      false,
-      ['sign'],
-    );
-    const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(payload));
-    const securedKey = Array.from(new Uint8Array(sig))
-      .map((b) => b.toString(16).padStart(2, '0'))
-      .join('');
-
-    const clientToken = `vercel_blob_client_${storeId}_${btoa(securedKey + '.' + payload)}`;
-
-    return Response.json({ clientToken, storeId });
+    return Response.json({ clientToken });
   } catch (error) {
     console.error('blob token error:', error);
     return Response.json(
