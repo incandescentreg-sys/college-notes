@@ -280,27 +280,25 @@ function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&l
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 function fmtSize(b){if(!b)return'';b=+b;if(b<1024)return b+' Б';if(b<1048576)return(b/1024).toFixed(1)+' КБ';return(b/1048576).toFixed(1)+' МБ';}
 function pct(loaded,total){return total>0?Math.round(loaded/total*100)+'%':'';}
-function uploadFile(file,onProg){
-  return new Promise(async(resolve,reject)=>{
-    try{
-      const t=await fetch('/api/blob/upload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'blob.generate-client-token',payload:{pathname:file.name,clientPayload:null,multipart:false}})});
-      if(!t.ok){let msg;try{msg=(await t.json()).error}catch{msg=await t.text()}throw new Error(msg||'Не удалось получить токен');}
-      const{clientToken}=await t.json();
-      const xhr=new XMLHttpRequest();
-      xhr.open('PUT','https://vercel.com/api/blob/?pathname='+encodeURIComponent(file.name));
-      xhr.setRequestHeader('authorization','Bearer '+clientToken);
-      xhr.setRequestHeader('x-vercel-blob-access','public');
-      xhr.setRequestHeader('x-api-version','12');
-      xhr.upload.onprogress=e=>{if(onProg&&e.lengthComputable)onProg(Math.round(e.loaded/e.total*100));};
-      xhr.onload=()=>{
-        if(xhr.status>=200&&xhr.status<300){try{resolve(JSON.parse(xhr.responseText));}catch{reject(new Error('Некорректный ответ сервера'));}}
-        else{let msg;try{msg=JSON.parse(xhr.responseText).error?.message}catch{}reject(new Error(msg||('Ошибка '+xhr.status)));}
-      };
-      xhr.onerror=()=>reject(new Error('Нет соединения'));
-      xhr.ontimeout=()=>reject(new Error('Таймаут загрузки'));
-      xhr.timeout=120000;
-      xhr.send(file);
-    }catch(e){reject(e);}
+async function uploadFile(file,onProg){
+  const t=await fetch('/api/blob/upload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'blob.generate-client-token',payload:{pathname:file.name,clientPayload:null,multipart:false}})});
+  if(!t.ok){const body=await t.text();let msg;try{msg=JSON.parse(body).error}catch{msg=body}throw new Error(msg||('Ошибка '+t.status));}
+  const{clientToken}=await t.json();
+  return new Promise((resolve,reject)=>{
+    const xhr=new XMLHttpRequest();
+    xhr.open('PUT','https://vercel.com/api/blob/?pathname='+encodeURIComponent(file.name));
+    xhr.setRequestHeader('authorization','Bearer '+clientToken);
+    xhr.setRequestHeader('x-vercel-blob-access','public');
+    xhr.setRequestHeader('x-api-version','12');
+    xhr.upload.onprogress=e=>{if(onProg&&e.lengthComputable)onProg(Math.round(e.loaded/e.total*100));};
+    xhr.onload=()=>{
+      if(xhr.status>=200&&xhr.status<300){try{resolve(JSON.parse(xhr.responseText));}catch{reject(new Error('Некорректный ответ сервера'));}}
+      else{let msg;try{msg=JSON.parse(xhr.responseText).error?.message}catch{}reject(new Error(msg||('Ошибка '+xhr.status)));}
+    };
+    xhr.onerror=()=>reject(new Error('Нет соединения'));
+    xhr.ontimeout=()=>reject(new Error('Таймаут загрузки'));
+    xhr.timeout=120000;
+    xhr.send(file);
   });
 }
 function handleFiles(files){pendingFiles=[];const el=document.getElementById('f_uploaded');el.innerHTML='';const inp=document.getElementById('f_file');let active=files.length;if(active&&inp)inp.disabled=true;for(let i=0;i<files.length;i++){(f=>{const chip=document.createElement('span');chip.className='uploaded-chip';const id='chip_'+uid();chip.id=id;chip.innerHTML=`<span style="min-width:22px;display:inline-block;text-align:center">⏳</span> <span>${esc(f.name)}</span><button onclick="document.getElementById('${id}').remove()">✕</button>`;el.appendChild(chip);const prog=chip.firstChild;uploadFile(f,pc=>{prog.textContent=pc+'%';}).then(r=>{if(!document.getElementById(id))return;pendingFiles.push({name:f.name,size:fmtSize(f.size),url:r.url,pathname:r.pathname,contentType:r.contentType,downloadUrl:r.downloadUrl});chip.innerHTML=`📎 <span>${esc(f.name)}</span><span style="font-size:11px;color:var(--muted);margin:0 4px">${fmtSize(f.size)}</span><button onclick="var i=pendingFiles.findIndex(x=>x.name===${JSON.stringify(f.name)});if(i>=0)pendingFiles.splice(i,1);this.parentElement.remove()">✕</button>`;}).catch(e=>{if(document.getElementById(id))chip.innerHTML=`❌ <span>${esc(f.name)} — ${esc(e.message||'ошибка')}</span><button onclick="this.parentElement.remove()">✕</button>`;}).then(()=>{if(--active<=0&&inp)inp.disabled=false;});})(files[i]);}}

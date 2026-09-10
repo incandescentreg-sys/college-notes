@@ -1,22 +1,22 @@
-import { generateClientTokenFromReadWriteToken } from '@vercel/blob/client';
-
 export const config = { runtime: 'nodejs' };
 
 export default async function handler(request) {
-  const start = process.hrtime.bigint();
   try {
     const body = await request.json();
-    const payload = body && body.payload ? body.payload : {};
-    const pathname = payload.pathname || 'file';
+    const pathname = (body && body.payload && body.payload.pathname) || 'file';
 
-    if (!process.env.BLOB_READ_WRITE_TOKEN) {
-      return Response.json(
-        { error: 'BLOB_READ_WRITE_TOKEN is not set. Create a Blob Store in Vercel Storage.' },
-        { status: 500 },
-      );
+    const rw = process.env.BLOB_READ_WRITE_TOKEN;
+    if (!rw) {
+      return Response.json({ error: 'BLOB_READ_WRITE_TOKEN is not set' }, { status: 500 });
     }
 
-    const clientToken = await generateClientTokenFromReadWriteToken({
+    const parts = rw.split('_');
+    const storeId = parts[3] || '';
+    if (!storeId) {
+      return Response.json({ error: 'Could not parse store id from token' }, { status: 500 });
+    }
+
+    const payloadObj = {
       pathname,
       allowedContentTypes: [
         'application/pdf',
@@ -39,15 +39,27 @@ export default async function handler(request) {
       maximumSizeInBytes: 50 * 1024 * 1024,
       addRandomSuffix: true,
       validUntil: Date.now() + 60 * 60 * 1000,
-    });
+    };
 
-    const ms = Number(process.hrtime.bigint() - start) / 1e6;
-    console.log(`blob token OK in ${ms.toFixed(0)}ms for ${pathname}`);
+    const payload = btoa(JSON.stringify(payloadObj));
 
-    return Response.json({ clientToken });
+    const key = await crypto.subtle.importKey(
+      'raw',
+      new TextEncoder().encode(rw),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign'],
+    );
+    const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(payload));
+    const securedKey = Array.from(new Uint8Array(sig))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+
+    const clientToken = `vercel_blob_client_${storeId}_${btoa(securedKey + '.' + payload)}`;
+
+    return Response.json({ clientToken, storeId });
   } catch (error) {
-    const ms = Number(process.hrtime.bigint() - start) / 1e6;
-    console.error(`blob token error after ${ms.toFixed(0)}ms:`, error);
+    console.error('blob token error:', error);
     return Response.json(
       { error: error.message || 'Failed to generate token' },
       { status: 400 },
