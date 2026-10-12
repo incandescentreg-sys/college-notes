@@ -115,7 +115,7 @@
   .export-actions{display:flex;gap:10px;margin-top:8px;flex-wrap:wrap}
   .ov-bg{position:fixed;inset:0;background:var(--veil);display:none;align-items:flex-start;justify-content:center;padding:30px 16px;z-index:110;overflow:auto}
   .ov-bg.open{display:flex}
-  .ov{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);width:100%;padding:18px}
+  .ov{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);width:100%;min-width:0;padding:18px}
   .ov.norm{max-width:860px}
   .ov.wide{max-width:1100px}
   .pv-head{display:flex;align-items:center;gap:10px;margin-bottom:14px;font-size:15px;flex-wrap:wrap}
@@ -123,10 +123,12 @@
   .pv-body img{max-width:100%;max-height:70vh;border-radius:8px;display:inline-block}
   .pv-body iframe{width:100%;height:70vh;border:1px solid var(--line);border-radius:8px;background:#fff}
   .pv-body pre{text-align:left;white-space:pre-wrap;word-break:break-word;max-height:68vh;overflow:auto;font-size:13px;background:var(--file-bg);border:1px solid var(--line);border-radius:8px;padding:12px;margin:0}
-  .pv-body .xls-wrap{max-height:68vh;overflow:auto;border:1px solid var(--line);border-radius:8px;background:var(--card)}
+  .pv-body .xls-wrap{max-width:100%;max-height:68vh;overflow:auto;-webkit-overflow-scrolling:touch;text-align:left;border:1px solid var(--line);border-radius:8px;background:var(--card)}
   .pv-body table.xls{border-collapse:collapse;font-size:13px;min-width:100%}
   .pv-body table.xls th,.pv-body table.xls td{border:1px solid var(--line);padding:6px 10px;text-align:left;white-space:nowrap;max-width:320px;overflow:hidden;text-overflow:ellipsis}
   .pv-body table.xls th{background:var(--accent-soft);font-weight:700;position:sticky;top:0;z-index:1}
+  .pv-body table.xls td.rn{background:var(--accent-soft);font-weight:700;position:sticky;left:0}
+  .xls-note{font-size:12px;color:var(--muted);margin-top:6px;text-align:left}
   .xls-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
   .xls-tabs button{border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:8px;padding:5px 12px;font-size:13px;cursor:pointer}
   .xls-tabs button.active{background:var(--accent);color:var(--accent-contrast);border-color:var(--accent)}
@@ -149,7 +151,10 @@
   .sch-lesson.off:hover{opacity:.7}
   .sch-del{position:absolute;top:4px;right:4px;border:none;background:none;color:var(--muted);cursor:pointer;font-size:12px;padding:2px}
   .sch-del:hover{color:var(--danger)}
-  @media(max-width:760px){#app{grid-template-columns:1fr!important}aside{position:static;max-height:none;order:-1}}
+  @media(max-width:760px){#app{grid-template-columns:1fr!important}aside{position:static;max-height:none;order:-1}
+    .ov-bg{padding:12px 8px}.ov{padding:12px}
+    .pv-body table.xls{font-size:12px}
+    .pv-body table.xls th,.pv-body table.xls td{padding:4px 6px;max-width:180px;white-space:normal;word-break:break-word;min-width:48px}}
 </style>
 </head>
 <body>
@@ -280,28 +285,78 @@ function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&l
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 function fmtSize(b){if(!b)return'';b=+b;if(b<1024)return b+' Б';if(b<1048576)return(b/1024).toFixed(1)+' КБ';return(b/1048576).toFixed(1)+' МБ';}
 function pct(loaded,total){return total>0?Math.round(loaded/total*100)+'%':'';}
+const TYPE_BY_EXT={jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',gif:'image/gif',webp:'image/webp',bmp:'image/bmp',svg:'image/svg+xml',avif:'image/avif',heic:'image/heic',heif:'image/heif',
+  pdf:'application/pdf',txt:'text/plain',md:'text/markdown',csv:'text/csv',json:'application/json',zip:'application/zip',
+  doc:'application/msword',docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xls:'application/vnd.ms-excel',xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  ppt:'application/vnd.ms-powerpoint',pptx:'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  odt:'application/vnd.oasis.opendocument.text',ods:'application/vnd.oasis.opendocument.spreadsheet',rtf:'application/rtf'};
+function extOf(name){const m=String(name||'').toLowerCase().match(/\.([a-z0-9]{1,5})$/);return m?m[1]:'';}
+function typeOfName(name){return TYPE_BY_EXT[extOf(name)]||'';}
+function extOfType(type){if(type==='image/jpeg')return'jpg';for(const k in TYPE_BY_EXT)if(TYPE_BY_EXT[k]===type)return k;return'';}
+async function toJpeg(file){
+  const src=URL.createObjectURL(file);
+  try{
+    const img=new Image();img.src=src;await img.decode();
+    const c=document.createElement('canvas');c.width=img.naturalWidth;c.height=img.naturalHeight;
+    c.getContext('2d').drawImage(img,0,0);
+    return await new Promise(r=>c.toBlob(r,'image/jpeg',0.9));
+  }finally{URL.revokeObjectURL(src);}
+}
+// Фото с телефона часто приходят как HEIC или без расширения: приводим к понятному виду
+async function prepareFile(file){
+  let name=file.name||'file',type=file.type||typeOfName(name),body=file;
+  if(/^image\/hei[cf]$/.test(type)){
+    try{const jpg=await toJpeg(file);if(jpg){body=jpg;type='image/jpeg';name=name.replace(/\.[^.]*$/,'')+'.jpg';}}catch{}
+  }
+  if(!extOf(name)&&extOfType(type))name+='.'+extOfType(type);
+  return{name,type,body,size:body.size};
+}
 async function uploadFile(file,onProg){
-  const t=await fetch('/api/blob/upload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'blob.generate-client-token',payload:{pathname:file.name,clientPayload:null,multipart:false}})});
+  const{name,type,body}=await prepareFile(file);
+  const t=await fetch('/api/blob/upload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'blob.generate-client-token',payload:{pathname:name,clientPayload:null,multipart:false}})});
   if(!t.ok){const body=await t.text();let msg;try{msg=JSON.parse(body).error}catch{msg=body}throw new Error(msg||('Ошибка '+t.status));}
   const{clientToken}=await t.json();
   return new Promise((resolve,reject)=>{
     const xhr=new XMLHttpRequest();
-    xhr.open('PUT','https://vercel.com/api/blob/?pathname='+encodeURIComponent(file.name));
+    xhr.open('PUT','https://vercel.com/api/blob/?pathname='+encodeURIComponent(name));
+    if(type)xhr.setRequestHeader('x-content-type',type);
     xhr.setRequestHeader('authorization','Bearer '+clientToken);
     xhr.setRequestHeader('x-vercel-blob-access','public');
     xhr.setRequestHeader('x-api-version','12');
     xhr.upload.onprogress=e=>{if(onProg&&e.lengthComputable)onProg(Math.round(e.loaded/e.total*100));};
     xhr.onload=()=>{
-      if(xhr.status>=200&&xhr.status<300){try{resolve(JSON.parse(xhr.responseText));}catch{reject(new Error('Некорректный ответ сервера'));}}
+      if(xhr.status>=200&&xhr.status<300){try{resolve(Object.assign(JSON.parse(xhr.responseText),{name,size:body.size}));}catch{reject(new Error('Некорректный ответ сервера'));}}
       else{let msg;try{msg=JSON.parse(xhr.responseText).error?.message}catch{}reject(new Error(msg||('Ошибка '+xhr.status)));}
     };
     xhr.onerror=()=>reject(new Error('Нет соединения'));
     xhr.ontimeout=()=>reject(new Error('Таймаут загрузки'));
     xhr.timeout=120000;
-    xhr.send(file);
+    xhr.send(body);
   });
 }
-function handleFiles(files){pendingFiles=[];const el=document.getElementById('f_uploaded');el.innerHTML='';const inp=document.getElementById('f_file');let active=files.length;if(active&&inp)inp.disabled=true;for(let i=0;i<files.length;i++){(f=>{const chip=document.createElement('span');chip.className='uploaded-chip';const id='chip_'+uid();chip.id=id;chip.innerHTML=`<span style="min-width:22px;display:inline-block;text-align:center">⏳</span> <span>${esc(f.name)}</span><button onclick="document.getElementById('${id}').remove()">✕</button>`;el.appendChild(chip);const prog=chip.firstChild;uploadFile(f,pc=>{prog.textContent=pc+'%';}).then(r=>{if(!document.getElementById(id))return;pendingFiles.push({name:f.name,size:fmtSize(f.size),url:r.url,pathname:r.pathname,contentType:r.contentType,downloadUrl:r.downloadUrl});chip.innerHTML=`📎 <span>${esc(f.name)}</span><span style="font-size:11px;color:var(--muted);margin:0 4px">${fmtSize(f.size)}</span><button onclick="var i=pendingFiles.findIndex(x=>x.name===${JSON.stringify(f.name)});if(i>=0)pendingFiles.splice(i,1);this.parentElement.remove()">✕</button>`;}).catch(e=>{if(document.getElementById(id))chip.innerHTML=`❌ <span>${esc(f.name)} — ${esc(e.message||'ошибка')}</span><button onclick="this.parentElement.remove()">✕</button>`;}).then(()=>{if(--active<=0&&inp)inp.disabled=false;});})(files[i]);}}
+function chipHtml(f){return `📎 <span>${esc(f.name)}</span><span style="font-size:11px;color:var(--muted);margin:0 4px">${esc(f.size)}</span><button type="button" onclick="removePending(this,${esc(JSON.stringify(f.url))})">✕</button>`;}
+function removePending(btn,url){pendingFiles=pendingFiles.filter(x=>x.url!==url);btn.parentElement.remove();}
+function handleFiles(files){
+  files=Array.from(files||[]);
+  const el=document.getElementById('f_uploaded');
+  const inp=document.getElementById('f_file');
+  let active=files.length;if(active&&inp)inp.disabled=true;
+  files.forEach(f=>{
+    const chip=document.createElement('span');chip.className='uploaded-chip';
+    chip.innerHTML=`<span style="min-width:22px;display:inline-block;text-align:center">⏳</span> <span>${esc(f.name)}</span><button type="button">✕</button>`;
+    chip.lastChild.onclick=()=>chip.remove();
+    el.appendChild(chip);
+    const prog=chip.firstChild;
+    uploadFile(f,pc=>{prog.textContent=pc+'%';}).then(r=>{
+      if(!chip.isConnected)return;
+      const item={name:r.name,size:fmtSize(r.size),url:r.url,pathname:r.pathname,contentType:r.contentType,downloadUrl:r.downloadUrl};
+      pendingFiles.push(item);chip.innerHTML=chipHtml(item);
+    }).catch(e=>{
+      if(chip.isConnected){chip.innerHTML=`❌ <span>${esc(f.name)} — ${esc(e.message||'ошибка')}</span><button type="button">✕</button>`;chip.lastChild.onclick=()=>chip.remove();}
+    }).then(()=>{if(--active<=0&&inp){inp.disabled=false;inp.value='';}});
+  });
+}
 function handleDrop(e){const files=e.dataTransfer.files;if(files.length)handleFiles(files);}
 function today(){const d=new Date();return d.toISOString().slice(0,10);}
 function fmtDate(s){if(!s)return'';const d=new Date(s+'T00:00:00');return d.toLocaleDateString('ru-RU',{day:'numeric',month:'long',year:'numeric'});}
@@ -374,7 +429,7 @@ function entryCard(t){
     </div>
     ${t.desc?`<div class="desc">${esc(t.desc)}</div>`:''}
     ${t.link?`<div><a href="${esc(t.link)}" target="_blank" rel="noopener">${esc(t.link)}</a></div>`:''}
-    ${t.files&&t.files.length?`<div class="files">${t.files.map((f,i)=>`<div class="file-row"><span class="file-ico">📎</span><a href="${esc(f.url||f.dataUrl||'#')}" target="_blank" rel="noopener">${esc(f.name)}</a><span class="fsize">${f.size}</span><button class="btn sm ghost" onclick="previewFile('${t.id}',${i})">👁 Просмотр</button></div>`).join('')}</div>`:''}
+    ${t.files&&t.files.length?`<div class="files">${t.files.map((f,i)=>`<div class="file-row"><span class="file-ico">📎</span><a href="${esc(f.url||f.dataUrl||'#')}" target="_blank" rel="noopener">${esc(f.name)}</a><span class="fsize">${f.size}</span><button class="btn sm ghost" onclick="previewFile('${t.id}',${i})">👁 Просмотр</button><button class="btn sm ghost" onclick="downloadFile('${t.id}',${i})">⬇</button></div>`).join('')}</div>`:''}
     <div class="row">
       ${dueHtml}
       <span class="duedate">${esc(subjectName(t.subject))}</span>
@@ -478,7 +533,7 @@ function openModal(kind,id){
       <div class="field"><label>Файлы</label>
         <div class="drop" onclick="document.getElementById('f_file').click()" ondragover="this.classList.add('drag');event.preventDefault()" ondragleave="this.classList.remove('drag')" ondrop="event.preventDefault();handleDrop(event)">Нажмите или перетащите файлы сюда</div>
         <input id="f_file" type="file" multiple style="display:none" onchange="handleFiles(this.files)">
-        <div id="f_uploaded">${t&&t.files?t.files.map((f,i)=>`<span class="uploaded-chip">📎 ${esc(f.name)}<span style="font-size:11px;color:var(--muted);margin:0 4px">${f.size}</span><button onclick="this.parentElement.remove();pendingFiles.splice(${i},1)">✕</button></span>`).join(''):''}</div>
+        <div id="f_uploaded">${t&&t.files?t.files.map(f=>`<span class="uploaded-chip">${chipHtml(f)}</span>`).join(''):''}</div>
       </div>
       <div class="row" style="justify-content:flex-end">
         <button class="btn ghost" onclick="closeModal()">Отмена</button>
@@ -528,17 +583,29 @@ function exportData(){
 }
 
 function mimeOf(f){
-  const n=(f.name||'').toLowerCase();
-  if(f.type)return f.type;
-  if(/\.(png|jpe?g|gif|webp|bmp|svg|ico|avif)$/.test(n))return'image/'+n.match(/\.(\w+)$/)[1].replace('jpg','jpeg');
-  return'application/octet-stream';
+  const ct=String(f.contentType||f.type||'').split(';')[0].trim();
+  if(ct&&ct!=='application/octet-stream')return ct;
+  return typeOfName(f.name)||typeOfName(f.pathname)||'application/octet-stream';
 }
 function isImage(f){return /^image\//.test(mimeOf(f));}
 function isPdf(f){return mimeOf(f)==='application/pdf'||/\.pdf$/i.test(f.name);}
 function isText(f){return /\.(txt|md|csv|log|json|js|html|css|xml|sql|py|ts|java|c|cpp|h|ini|cfg|yml|yaml|sh|bat)$/i.test(f.name);}
-function isXlsx(f){return /\.(xlsx|xls)$/i.test(f.name);}
-function openPure(url,name){
-  const a=document.createElement('a');a.href=url;a.download=name||'file';a.target='_blank';a.rel='noopener';a.click();
+function isXlsx(f){return /\.(xlsx|xlsm|xls|ods)$/i.test(f.name);}
+function fileAt(tid,fi){const t=data.tasks.find(x=>x.id===tid);return t&&t.files&&t.files[fi]||null;}
+async function downloadFile(tid,fi){
+  const f=fileAt(tid,fi);if(!f)return;
+  const u=f.url||f.downloadUrl;if(!u){toast('Файл недоступен');return;}
+  toast('Скачивание…');
+  try{
+    const r=await fetch(u);if(!r.ok)throw new Error('HTTP '+r.status);
+    const href=URL.createObjectURL(await r.blob());
+    const a=document.createElement('a');a.href=href;a.download=f.name||'file';
+    document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(href),60000);
+  }catch(e){
+    // запасной вариант: Vercel Blob сам отдаёт файл как вложение
+    location.href=f.downloadUrl||(u+(u.includes('?')?'&':'?')+'download=1');
+  }
 }
 function closePreview(){document.getElementById('pvBg').classList.remove('open');}
 function loadScript(srcs,ok,err){
@@ -655,26 +722,26 @@ function renderXlsx(url,bodyEl){
   (async()=>{
     try{
       const bytes=await fetchBytes(url);
-      const wb=XLSX.read(new Uint8Array(bytes),{type:'array'});
+      const wb=XLSX.read(new Uint8Array(bytes),{type:'array',cellDates:true,dateNF:'dd.mm.yyyy'});
       const sheets=wb.SheetNames;
       let cur=0;
+      const MAX_ROWS=1000,MAX_COLS=60;
       function sheetToHtml(name){
         const ws=wb.Sheets[name];
-        const aoa=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+        let aoa=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false,blankrows:false});
+        aoa=aoa.map(r=>{let n=r.length;while(n&&String(r[n-1]).trim()==='')n--;return r.slice(0,n);});
+        while(aoa.length&&!aoa[aoa.length-1].length)aoa.pop();
         if(!aoa.length)return'<div style="text-align:center;padding:20px;color:var(--muted)">Лист пуст</div>';
-        const maxCols=Math.max.apply(null,aoa.map(r=>r.length));
-        let h='<table class="xls"><tr>'+Array.from({length:maxCols},(_,c)=>`<th>${esc(c+1)}</th>`).join('')+'</tr>';
-        aoa.forEach(r=>{
-          h+='<tr>';
-          for(let c=0;c<maxCols;c++){
-            let v=r[c];
-            if(v instanceof Date)v=v.toLocaleString('ru-RU');
-            else if(typeof v==='number'&&!Number.isInteger(v))v=v.toLocaleString('ru-RU',{maximumFractionDigits:4});
-            h+=`<td>${esc(v==null?'':String(v))}</td>`;
-          }
+        const totalRows=aoa.length,totalCols=Math.max.apply(null,aoa.map(r=>r.length));
+        const rows=aoa.slice(0,MAX_ROWS),cols=Math.min(totalCols,MAX_COLS);
+        let h='<table class="xls"><tr><th></th>'+Array.from({length:cols},(_,c)=>`<th>${esc(XLSX.utils.encode_col(c))}</th>`).join('')+'</tr>';
+        rows.forEach((r,ri)=>{
+          h+=`<tr><td class="rn">${ri+1}</td>`;
+          for(let c=0;c<cols;c++)h+=`<td>${esc(r[c]==null?'':String(r[c]))}</td>`;
           h+='</tr>';
         });
         h+='</table>';
+        if(totalRows>MAX_ROWS||totalCols>MAX_COLS)h+=`<div class="xls-note">Показана часть таблицы (${rows.length} из ${totalRows} строк, ${cols} из ${totalCols} столбцов). Полностью — в скачанном файле.</div>`;
         return h;
       }
       function render(){
@@ -704,20 +771,20 @@ function previewFile(tid,fi){
   if(isImage(f))inner=`<img src="${esc(u)}" alt="${esc(f.name)}">`;
   else if(isPdf(f)){
     inner=`<div style="text-align:center;padding:30px"><em>Загрузка PDF…</em></div>`;
-    pv.innerHTML=`<div class="pv-head"><strong>${esc(f.name)}</strong><span style="color:var(--muted);font-size:13px">${esc(f.size)}</span><span style="flex:1"></span><button class="btn ghost sm" onclick="openPure('${esc(u)}','${esc(f.name)}')">⬇ Скачать</button><button class="btn sm" onclick="closePreview()">Закрыть</button></div><div class="pv-body">${inner}</div>`;
+    pv.innerHTML=`<div class="pv-head"><strong>${esc(f.name)}</strong><span style="color:var(--muted);font-size:13px">${esc(f.size)}</span><span style="flex:1"></span><button class="btn ghost sm" onclick="downloadFile('${tid}',${fi})">⬇ Скачать</button><button class="btn sm" onclick="closePreview()">Закрыть</button></div><div class="pv-body">${inner}</div>`;
     bg.classList.add('open');
     renderPdf(u,pv.querySelector('.pv-body'));
     return;
   }
   else if(isText(f)){
     inner=`<div style="text-align:center;padding:30px"><em>Загрузка…</em></div>`;
-    pv.innerHTML=`<div class="pv-head"><strong>${esc(f.name)}</strong><span style="color:var(--muted);font-size:13px">${esc(f.size)}</span><span style="flex:1"></span><button class="btn ghost sm" onclick="openPure('${esc(u)}','${esc(f.name)}')">⬇ Скачать</button><button class="btn sm" onclick="closePreview()">Закрыть</button></div><div class="pv-body">${inner}</div>`;
+    pv.innerHTML=`<div class="pv-head"><strong>${esc(f.name)}</strong><span style="color:var(--muted);font-size:13px">${esc(f.size)}</span><span style="flex:1"></span><button class="btn ghost sm" onclick="downloadFile('${tid}',${fi})">⬇ Скачать</button><button class="btn sm" onclick="closePreview()">Закрыть</button></div><div class="pv-body">${inner}</div>`;
     bg.classList.add('open');
     fetch(u).then(r=>r.text()).then(txt=>{pv.querySelector('.pv-body').innerHTML=`<pre>${esc(txt)}</pre>`;}).catch(()=>{pv.querySelector('.pv-body').innerHTML='<div style="text-align:center;padding:30px;color:var(--danger)">Не удалось загрузить файл</div>';});
     return;
   }else if(isXlsx(f)){
     inner=`<div style="text-align:center;padding:30px"><em>Загрузка таблицы…</em></div>`;
-    pv.innerHTML=`<div class="pv-head"><strong>${esc(f.name)}</strong><span style="color:var(--muted);font-size:13px">${esc(f.size)}</span><span style="flex:1"></span><button class="btn ghost sm" onclick="openPure('${esc(u)}','${esc(f.name)}')">⬇ Скачать</button><button class="btn sm" onclick="closePreview()">Закрыть</button></div><div class="pv-body">${inner}</div>`;
+    pv.innerHTML=`<div class="pv-head"><strong>${esc(f.name)}</strong><span style="color:var(--muted);font-size:13px">${esc(f.size)}</span><span style="flex:1"></span><button class="btn ghost sm" onclick="downloadFile('${tid}',${fi})">⬇ Скачать</button><button class="btn sm" onclick="closePreview()">Закрыть</button></div><div class="pv-body">${inner}</div>`;
     bg.classList.add('open');
     renderXlsx(u,pv.querySelector('.pv-body'));
     return;
@@ -726,7 +793,7 @@ function previewFile(tid,fi){
     inner=m.startsWith('video/')||m.startsWith('audio/')?`<video src="${esc(u)}" controls style="max-width:100%;max-height:70vh;border-radius:8px"></video>`:
           `<iframe src="${esc(u)}" title="${esc(f.name)}" style="width:100%;height:70vh;border:1px solid var(--line);border-radius:8px;background:#fff"></iframe>`;
   }
-  pv.innerHTML=`<div class="pv-head"><strong>${esc(f.name)}</strong><span style="color:var(--muted);font-size:13px">${esc(f.size)}</span><span style="flex:1"></span><button class="btn ghost sm" onclick="openPure('${esc(u)}','${esc(f.name)}')">⬇ Скачать</button><button class="btn sm" onclick="closePreview()">Закрыть</button></div><div class="pv-body">${inner}</div>`;
+  pv.innerHTML=`<div class="pv-head"><strong>${esc(f.name)}</strong><span style="color:var(--muted);font-size:13px">${esc(f.size)}</span><span style="flex:1"></span><button class="btn ghost sm" onclick="downloadFile('${tid}',${fi})">⬇ Скачать</button><button class="btn sm" onclick="closePreview()">Закрыть</button></div><div class="pv-body">${inner}</div>`;
   bg.classList.add('open');
 }
 
