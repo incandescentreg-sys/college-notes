@@ -120,6 +120,8 @@
   .ov.norm{max-width:860px}
   .ov.wide{max-width:1100px}
   .pv-head{display:flex;align-items:center;gap:10px;margin-bottom:14px;font-size:15px;flex-wrap:wrap}
+  .pv-head strong{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  @media(max-width:760px){.pv-head{flex-wrap:nowrap}.pv-head>span[style*="flex:1"]{display:none}.pv-head strong{flex:1 1 auto}.pv-head>span:not([style*="flex:1"]){display:none}.pv-head .btn{white-space:nowrap;flex:none}}
   .pv-body{text-align:center}
   .pv-body img{max-width:100%;max-height:70vh;border-radius:8px;display:inline-block}
   .pv-body iframe{width:100%;height:70vh;border:1px solid var(--line);border-radius:8px;background:#fff}
@@ -143,6 +145,15 @@
   .pv-body table.xls tr.gap td{background:transparent;border-right-color:transparent;padding:.2em}
   .pv-body .xls-wrap.nowrap table.xls td{white-space:nowrap;max-width:none}
   .xls-note{font-size:12px;color:var(--muted);margin-top:6px;text-align:left}
+  .doc-wrap{--dz:16px;max-height:75vh;overflow:auto;-webkit-overflow-scrolling:touch;-webkit-text-size-adjust:100%;text-size-adjust:100%;background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:1em 1.2em;text-align:left;font-size:var(--dz);line-height:1.55;overflow-wrap:break-word}
+  .doc-wrap p{margin:.45em 0}
+  .doc-wrap h1{font-size:1.5em;margin:.6em 0 .4em}.doc-wrap h2{font-size:1.3em;margin:.6em 0 .4em}.doc-wrap h3,.doc-wrap h4{font-size:1.1em;margin:.5em 0 .3em}
+  .doc-wrap ul,.doc-wrap ol{padding-left:1.4em;margin:.4em 0}
+  .doc-wrap table{display:block;overflow-x:auto;border-collapse:collapse;margin:.6em 0;max-width:100%}
+  .doc-wrap td,.doc-wrap th{border:1px solid var(--line);padding:.35em .55em;vertical-align:top;min-width:4em}
+  .doc-wrap td p,.doc-wrap th p{margin:0}
+  .doc-wrap img{max-width:100%;height:auto}
+  .doc-wrap a{color:inherit;text-decoration:underline}
   .xls-empty{text-align:center;padding:24px;color:var(--muted)}
   .pdf-box{display:flex;flex-direction:column;gap:10px}
   .pdf-box .pdf-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:center;background:var(--file-bg);border:1px solid var(--line);border-radius:8px;padding:8px;position:sticky;top:0;z-index:2}
@@ -167,6 +178,8 @@
     .ov-bg{padding:12px 8px}.ov{padding:12px}
     #pvBg{padding:0}#pvBg .ov{border-radius:0;min-height:100%;padding:12px 12px 20px;box-shadow:none}
     #pvBg .pv-body .xls-wrap{max-height:calc(100dvh - 150px)}
+    #pvBg .doc-wrap{max-height:calc(100dvh - 150px);padding:.8em .9em}
+    #pvBg .pv-body iframe{height:calc(100dvh - 110px)!important}
     .pv-body table.xls td:first-child:not([colspan]){min-width:6em!important;max-width:40vw}}
 </style>
 </head>
@@ -603,6 +616,7 @@ function mimeOf(f){
 function isImage(f){return /^image\//.test(mimeOf(f));}
 function isPdf(f){return mimeOf(f)==='application/pdf'||/\.pdf$/i.test(f.name);}
 function isText(f){return /\.(txt|md|csv|log|json|js|html|css|xml|sql|py|ts|java|c|cpp|h|ini|cfg|yml|yaml|sh|bat)$/i.test(f.name);}
+function isDocx(f){return /\.docx$/i.test(f.name);}
 function isXlsx(f){return /\.(xlsx|xlsm|xls|ods)$/i.test(f.name);}
 function fileAt(tid,fi){const t=data.tasks.find(x=>x.id===tid);return t&&t.files&&t.files[fi]||null;}
 function tgApp(){const w=window.Telegram&&window.Telegram.WebApp;return w&&w.initData?w:null;}
@@ -730,6 +744,41 @@ function renderPdf(url,bodyEl){
       box.innerHTML='<div style="text-align:center;padding:30px;color:var(--danger)">Не удалось открыть PDF: '+esc(e.message||'ошибка')+'</div>';
     }
   }
+}
+// Word (.docx) -> HTML через mammoth: читаемый текст на весь экран вместо системного просмотрщика
+function renderDocx(url,bodyEl){
+  if(!window.mammoth){
+    loadScript(
+      ['https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js',
+       'https://unpkg.com/mammoth@1.6.0/mammoth.browser.min.js',
+       'https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js'],
+      ()=>renderDocx(url,bodyEl),
+      ()=>{bodyEl.innerHTML='<div style="text-align:center;padding:30px;color:var(--muted)">Не удалось загрузить просмотрщик документов.<br>Проверьте подключение к интернету.</div>';}
+    );
+    return;
+  }
+  (async()=>{
+    try{
+      const bytes=await fetchBytes(url);
+      const r=await mammoth.convertToHtml({arrayBuffer:bytes});
+      let zoom=+(lsGet('doc_zoom')||(innerWidth<760?15:16));
+      bodyEl.innerHTML=`<div class="xls-bar"><div style="flex:1"></div><div class="xls-tools">
+          <button class="xls-btn" data-act="zo" title="Мельче">A−</button>
+          <button class="xls-btn" data-act="zi" title="Крупнее">A+</button>
+        </div></div>
+        <div class="doc-wrap">${r.value||'<p style="color:var(--muted)">Документ пуст</p>'}</div>`;
+      const wrapEl=bodyEl.querySelector('.doc-wrap');
+      wrapEl.querySelectorAll('a').forEach(a=>{a.target='_blank';a.rel='noopener';});
+      const apply=()=>wrapEl.style.setProperty('--dz',zoom+'px');
+      bodyEl.querySelectorAll('[data-act]').forEach(b=>b.onclick=()=>{
+        zoom=b.dataset.act==='zo'?Math.max(10,zoom-1):Math.min(28,zoom+1);
+        lsSet('doc_zoom',zoom);apply();
+      });
+      apply();
+    }catch(e){
+      bodyEl.innerHTML=`<div style="text-align:center;padding:30px;color:var(--danger)">Не удалось открыть документ: ${esc(e.message||'ошибка')}</div>`;
+    }
+  })();
 }
 function renderXlsx(url,bodyEl){
   if(!window.XLSX){
@@ -890,6 +939,12 @@ function previewFile(tid,fi){
     pv.innerHTML=`<div class="pv-head"><strong>${esc(f.name)}</strong><span style="color:var(--muted);font-size:13px">${esc(f.size)}</span><span style="flex:1"></span><button class="btn ghost sm" onclick="downloadFile('${tid}',${fi})">⬇ Скачать</button><button class="btn sm" onclick="closePreview()">Закрыть</button></div><div class="pv-body">${inner}</div>`;
     bg.classList.add('open');
     fetch(u).then(r=>r.text()).then(txt=>{pv.querySelector('.pv-body').innerHTML=`<pre>${esc(txt)}</pre>`;}).catch(()=>{pv.querySelector('.pv-body').innerHTML='<div style="text-align:center;padding:30px;color:var(--danger)">Не удалось загрузить файл</div>';});
+    return;
+  }else if(isDocx(f)){
+    inner=`<div style="text-align:center;padding:30px"><em>Загрузка документа…</em></div>`;
+    pv.innerHTML=`<div class="pv-head"><strong>${esc(f.name)}</strong><span style="color:var(--muted);font-size:13px">${esc(f.size)}</span><span style="flex:1"></span><button class="btn ghost sm" onclick="downloadFile('${tid}',${fi})">⬇ Скачать</button><button class="btn sm" onclick="closePreview()">Закрыть</button></div><div class="pv-body">${inner}</div>`;
+    bg.classList.add('open');
+    renderDocx(u,pv.querySelector('.pv-body'));
     return;
   }else if(isXlsx(f)){
     inner=`<div style="text-align:center;padding:30px"><em>Загрузка таблицы…</em></div>`;
