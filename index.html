@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Дарья Измайлова — колледж</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
   :root{
     --bg:#f4f5f7; --card:#fff; --text:#1f2937; --muted:#6b7280;
@@ -123,15 +124,26 @@
   .pv-body img{max-width:100%;max-height:70vh;border-radius:8px;display:inline-block}
   .pv-body iframe{width:100%;height:70vh;border:1px solid var(--line);border-radius:8px;background:#fff}
   .pv-body pre{text-align:left;white-space:pre-wrap;word-break:break-word;max-height:68vh;overflow:auto;font-size:13px;background:var(--file-bg);border:1px solid var(--line);border-radius:8px;padding:12px;margin:0}
-  .pv-body .xls-wrap{max-width:100%;max-height:68vh;overflow:auto;-webkit-overflow-scrolling:touch;text-align:left;border:1px solid var(--line);border-radius:8px;background:var(--card)}
-  .pv-body table.xls{border-collapse:collapse;font-size:13px;min-width:100%}
-  .pv-body table.xls th,.pv-body table.xls td{border:1px solid var(--line);padding:6px 10px;text-align:left;white-space:nowrap;max-width:320px;overflow:hidden;text-overflow:ellipsis}
-  .pv-body table.xls th{background:var(--accent-soft);font-weight:700;position:sticky;top:0;z-index:1}
-  .pv-body table.xls td.rn{background:var(--accent-soft);font-weight:700;position:sticky;left:0}
-  .xls-note{font-size:12px;color:var(--muted);margin-top:6px;text-align:left}
-  .xls-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
-  .xls-tabs button{border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:8px;padding:5px 12px;font-size:13px;cursor:pointer}
+  .xls-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+  .xls-tabs{display:flex;gap:6px;overflow-x:auto;flex:1 1 auto;min-width:0;-webkit-overflow-scrolling:touch}
+  .xls-tabs button{flex:none;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:999px;padding:7px 14px;font-size:14px;cursor:pointer}
   .xls-tabs button.active{background:var(--accent);color:var(--accent-contrast);border-color:var(--accent)}
+  .xls-tools{display:flex;gap:6px;flex:none;margin-left:auto}
+  .xls-btn{border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:8px;padding:6px 10px;font-size:14px;cursor:pointer;min-width:40px}
+  .xls-btn.on{background:var(--accent);color:var(--accent-contrast);border-color:var(--accent)}
+  .pv-body .xls-wrap{--xz:15px;max-width:100%;max-height:70vh;overflow:auto;-webkit-overflow-scrolling:touch;text-align:left;border:1px solid var(--line);border-radius:10px;background:var(--card)}
+  .pv-body table.xls{border-collapse:separate;border-spacing:0;font-size:var(--xz);line-height:1.4;color:var(--text);min-width:100%}
+  .pv-body table.xls td{border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:.55em .75em;vertical-align:top;text-align:left;white-space:normal;overflow-wrap:break-word;min-width:4em;max-width:16em}
+  .pv-body table.xls td:first-child{position:sticky;left:0;z-index:1;background:var(--card);box-shadow:1px 0 0 var(--line)}
+  .pv-body table.xls tr:nth-child(even) td:first-child{background:var(--file-bg)}
+  .pv-body table.xls tr.hd td:first-child{z-index:2;background:var(--accent-soft)}
+  .pv-body table.xls tr:nth-child(even) td{background:var(--file-bg)}
+  .pv-body table.xls td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;min-width:3em}
+  .pv-body table.xls tr.hd td{background:var(--accent-soft);font-weight:700;position:sticky;top:0;z-index:1;vertical-align:middle}
+  .pv-body table.xls tr.gap td{background:transparent;border-right-color:transparent;padding:.2em}
+  .pv-body .xls-wrap.nowrap table.xls td{white-space:nowrap;max-width:none}
+  .xls-note{font-size:12px;color:var(--muted);margin-top:6px;text-align:left}
+  .xls-empty{text-align:center;padding:24px;color:var(--muted)}
   .pdf-box{display:flex;flex-direction:column;gap:10px}
   .pdf-box .pdf-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:center;background:var(--file-bg);border:1px solid var(--line);border-radius:8px;padding:8px;position:sticky;top:0;z-index:2}
   .pdf-box .pdf-btn{border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;min-width:38px}
@@ -153,8 +165,9 @@
   .sch-del:hover{color:var(--danger)}
   @media(max-width:760px){#app{grid-template-columns:1fr!important}aside{position:static;max-height:none;order:-1}
     .ov-bg{padding:12px 8px}.ov{padding:12px}
-    .pv-body table.xls{font-size:12px}
-    .pv-body table.xls th,.pv-body table.xls td{padding:4px 6px;max-width:180px;white-space:normal;word-break:break-word;min-width:48px}}
+    #pvBg{padding:0}#pvBg .ov{border-radius:0;min-height:100%;padding:12px 12px 20px;box-shadow:none}
+    #pvBg .pv-body .xls-wrap{max-height:calc(100dvh - 150px)}
+    .pv-body table.xls td:first-child:not([colspan]){min-width:6em!important;max-width:40vw}}
 </style>
 </head>
 <body>
@@ -429,7 +442,7 @@ function entryCard(t){
     </div>
     ${t.desc?`<div class="desc">${esc(t.desc)}</div>`:''}
     ${t.link?`<div><a href="${esc(t.link)}" target="_blank" rel="noopener">${esc(t.link)}</a></div>`:''}
-    ${t.files&&t.files.length?`<div class="files">${t.files.map((f,i)=>`<div class="file-row"><span class="file-ico">📎</span><a href="${esc(f.url||f.dataUrl||'#')}" target="_blank" rel="noopener">${esc(f.name)}</a><span class="fsize">${f.size}</span><button class="btn sm ghost" onclick="previewFile('${t.id}',${i})">👁 Просмотр</button><button class="btn sm ghost" onclick="downloadFile('${t.id}',${i})">⬇</button></div>`).join('')}</div>`:''}
+    ${t.files&&t.files.length?`<div class="files">${t.files.map((f,i)=>`<div class="file-row"><span class="file-ico">📎</span><a href="#" onclick="previewFile('${t.id}',${i});return false">${esc(f.name)}</a><span class="fsize">${f.size}</span><button class="btn sm ghost" onclick="previewFile('${t.id}',${i})">👁 Просмотр</button><button class="btn sm ghost" onclick="downloadFile('${t.id}',${i})">⬇</button></div>`).join('')}</div>`:''}
     <div class="row">
       ${dueHtml}
       <span class="duedate">${esc(subjectName(t.subject))}</span>
@@ -592,9 +605,19 @@ function isPdf(f){return mimeOf(f)==='application/pdf'||/\.pdf$/i.test(f.name);}
 function isText(f){return /\.(txt|md|csv|log|json|js|html|css|xml|sql|py|ts|java|c|cpp|h|ini|cfg|yml|yaml|sh|bat)$/i.test(f.name);}
 function isXlsx(f){return /\.(xlsx|xlsm|xls|ods)$/i.test(f.name);}
 function fileAt(tid,fi){const t=data.tasks.find(x=>x.id===tid);return t&&t.files&&t.files[fi]||null;}
+function tgApp(){const w=window.Telegram&&window.Telegram.WebApp;return w&&w.initData?w:null;}
 async function downloadFile(tid,fi){
   const f=fileAt(tid,fi);if(!f)return;
   const u=f.url||f.downloadUrl;if(!u){toast('Файл недоступен');return;}
+  const dl=f.downloadUrl||(u+(u.includes('?')?'&':'?')+'download=1');
+  // В мини-приложении Telegram обычное скачивание не работает: просим Telegram скачать файл сам
+  const tg=tgApp();
+  if(tg){
+    if(tg.downloadFile&&tg.isVersionAtLeast&&tg.isVersionAtLeast('8.0')){
+      try{tg.downloadFile({url:u,file_name:f.name||'file'});return;}catch(e){}
+    }
+    tg.openLink(dl);return;
+  }
   toast('Скачивание…');
   try{
     const r=await fetch(u);if(!r.ok)throw new Error('HTTP '+r.status);
@@ -604,7 +627,7 @@ async function downloadFile(tid,fi){
     setTimeout(()=>URL.revokeObjectURL(href),60000);
   }catch(e){
     // запасной вариант: Vercel Blob сам отдаёт файл как вложение
-    location.href=f.downloadUrl||(u+(u.includes('?')?'&':'?')+'download=1');
+    window.open(dl,'_blank','noopener');
   }
 }
 function closePreview(){document.getElementById('pvBg').classList.remove('open');}
@@ -725,40 +748,111 @@ function renderXlsx(url,bodyEl){
       const wb=XLSX.read(new Uint8Array(bytes),{type:'array',cellDates:true,dateNF:'dd.mm.yyyy'});
       const sheets=wb.SheetNames;
       let cur=0;
-      const MAX_ROWS=1000,MAX_COLS=60;
-      function sheetToHtml(name){
-        const ws=wb.Sheets[name];
-        let aoa=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false,blankrows:false});
-        aoa=aoa.map(r=>{let n=r.length;while(n&&String(r[n-1]).trim()==='')n--;return r.slice(0,n);});
-        while(aoa.length&&!aoa[aoa.length-1].length)aoa.pop();
-        if(!aoa.length)return'<div style="text-align:center;padding:20px;color:var(--muted)">Лист пуст</div>';
-        const totalRows=aoa.length,totalCols=Math.max.apply(null,aoa.map(r=>r.length));
-        const rows=aoa.slice(0,MAX_ROWS),cols=Math.min(totalCols,MAX_COLS);
-        let h='<table class="xls"><tr><th></th>'+Array.from({length:cols},(_,c)=>`<th>${esc(XLSX.utils.encode_col(c))}</th>`).join('')+'</tr>';
-        rows.forEach((r,ri)=>{
-          h+=`<tr><td class="rn">${ri+1}</td>`;
-          for(let c=0;c<cols;c++)h+=`<td>${esc(r[c]==null?'':String(r[c]))}</td>`;
-          h+='</tr>';
-        });
-        h+='</table>';
-        if(totalRows>MAX_ROWS||totalCols>MAX_COLS)h+=`<div class="xls-note">Показана часть таблицы (${rows.length} из ${totalRows} строк, ${cols} из ${totalCols} столбцов). Полностью — в скачанном файле.</div>`;
-        return h;
+      let zoom=+(lsGet('xls_zoom')||(innerWidth<760?13:15)),wrap=lsGet('xls_wrap')!=='0';
+      bodyEl.innerHTML=`<div class="xls-bar">
+          <div class="xls-tabs"></div>
+          <div class="xls-tools">
+            <button class="xls-btn" data-act="zo" title="Мельче">A−</button>
+            <button class="xls-btn" data-act="zi" title="Крупнее">A+</button>
+            <button class="xls-btn" data-act="wrap" title="Переносить текст в ячейках">↵ Перенос</button>
+          </div>
+        </div>
+        <div class="xls-wrap"></div><div class="xls-note"></div>`;
+      const tabsEl=bodyEl.querySelector('.xls-tabs'),wrapEl=bodyEl.querySelector('.xls-wrap'),noteEl=bodyEl.querySelector('.xls-note');
+      const wrapBtn=bodyEl.querySelector('[data-act="wrap"]');
+      function applyView(){
+        wrapEl.style.setProperty('--xz',zoom+'px');
+        wrapEl.classList.toggle('nowrap',!wrap);
+        wrapBtn.classList.toggle('on',wrap);
       }
-      function render(){
-        const tabs=sheets.map((n,i)=>`<button class="${i===cur?'active':''}" onclick="xlsTab(${i})">${esc(n)}</button>`).join('');
-        bodyEl.innerHTML=`<div class="xls-tabs">${tabs}</div><div class="xls-wrap">${sheetToHtml(sheets[cur])}</div>`;
-        window._xlsSheets=sheets;
-        window._xlsCur=cur;
-        window._xlsBody=bodyEl;
-        window._xlsRender=sheetToHtml;
-        window.xlsTab=function(i){window._xlsCur=i;window._xlsBody.innerHTML=`<div class="xls-tabs">${window._xlsSheets.map((n,j)=>`<button class="${j===i?'active':''}" onclick="xlsTab(${j})">${esc(n)}</button>`).join('')}</div><div class="xls-wrap">${window._xlsRender(window._xlsSheets[i])}</div>`;};
+      bodyEl.querySelectorAll('[data-act]').forEach(b=>b.onclick=()=>{
+        const a=b.dataset.act;
+        if(a==='zo')zoom=Math.max(11,zoom-1);
+        else if(a==='zi')zoom=Math.min(24,zoom+1);
+        else wrap=!wrap;
+        lsSet('xls_zoom',zoom);lsSet('xls_wrap',wrap?'1':'0');applyView();
+      });
+      function show(i){
+        cur=i;
+        tabsEl.innerHTML=sheets.length>1?sheets.map((n,j)=>`<button class="${j===i?'active':''}" data-i="${j}">${esc(n)}</button>`).join(''):'';
+        tabsEl.querySelectorAll('button').forEach(b=>b.onclick=()=>show(+b.dataset.i));
+        const r=sheetToHtml(wb.Sheets[sheets[i]]);
+        wrapEl.innerHTML=r.html;noteEl.textContent=r.note;wrapEl.scrollTop=0;wrapEl.scrollLeft=0;
       }
-      render();
+      applyView();show(0);
     }catch(e){
       bodyEl.innerHTML=`<div style="text-align:center;padding:30px;color:var(--danger)">Не удалось прочитать файл: ${esc(e.message||'ошибка')}</div>`;
     }
   })();
 }
+// Лист Excel -> HTML-таблица: учитывает объединённые ячейки, убирает пустые столбцы и хвосты
+function sheetToHtml(ws){
+  const empty={html:'<div class="xls-empty">Лист пуст</div>',note:''};
+  if(!ws||!ws['!ref'])return empty;
+  const MAX_ROWS=1000,MAX_COLS=60;
+  const rg=XLSX.utils.decode_range(ws['!ref']);
+  const lastR=Math.min(rg.e.r,rg.s.r+20000),lastC=Math.min(rg.e.c,rg.s.c+300);
+  const text=cell=>{
+    if(!cell||cell.v==null)return'';
+    if(cell.w!=null)return String(cell.w);
+    if(cell.v instanceof Date)return cell.v.toLocaleDateString('ru-RU');
+    if(typeof cell.v==='number')return cell.v.toLocaleString('ru-RU',{maximumFractionDigits:4});
+    return String(cell.v);
+  };
+  let maxR=-1;const usedCols=new Set();
+  for(let r=rg.s.r;r<=lastR;r++)for(let c=rg.s.c;c<=lastC;c++){
+    const cell=ws[XLSX.utils.encode_cell({r,c})];
+    if(cell&&text(cell).trim()!==''){if(r>maxR)maxR=r;usedCols.add(c);}
+  }
+  if(maxR<0)return empty;
+  const merges={},covered=new Set();
+  (ws['!merges']||[]).forEach(m=>{
+    if(m.s.r>maxR)return;
+    merges[m.s.r+','+m.s.c]=m;
+    for(let r=m.s.r;r<=m.e.r;r++)for(let c=m.s.c;c<=m.e.c;c++)if(r!==m.s.r||c!==m.s.c)covered.add(r+','+c);
+  });
+  const cols=[...usedCols].sort((a,b)=>a-b);
+  const shownCols=cols.slice(0,MAX_COLS),colSet=new Set(shownCols);
+  let firstR=rg.s.r;
+  while(firstR<maxR&&!shownCols.some(c=>text(ws[XLSX.utils.encode_cell({r:firstR,c})]).trim()!==''))firstR++;
+  const endR=Math.min(maxR,firstR+MAX_ROWS-1);
+  // ширина столбца по самому длинному значению (без шапки), чтобы длинный текст не превращался в узкую «колбасу»
+  const width={};
+  for(const c of shownCols){
+    let len=0;
+    for(let r=firstR+1;r<=endR;r++){const k=r+','+c;if(covered.has(k)||merges[k])continue;len=Math.max(len,text(ws[XLSX.utils.encode_cell({r,c})]).length);}
+    width[c]=Math.max(4,Math.min(16,Math.round(len*0.55)));
+  }
+  let h='<table class="xls">';
+  for(let r=firstR;r<=endR;r++){
+    const isEmpty=!shownCols.some(c=>text(ws[XLSX.utils.encode_cell({r,c})]).trim()!=='');
+    h+=`<tr class="${r===firstR?'hd':''}${isEmpty?' gap':''}">`;
+    for(const c of shownCols){
+      const key=r+','+c;
+      if(covered.has(key))continue;
+      const cell=ws[XLSX.utils.encode_cell({r,c})];
+      const m=merges[key];
+      let attrs='';
+      if(m){
+        const cs=shownCols.filter(x=>x>=m.s.c&&x<=m.e.c).length;
+        const rs=Math.min(m.e.r,endR)-r+1;
+        if(cs>1)attrs+=` colspan="${cs}"`;
+        if(rs>1)attrs+=` rowspan="${rs}"`;
+      }
+      const t=text(cell);
+      const num=cell&&cell.t==='n';
+      if(!m)attrs+=` style="min-width:${width[c]}em"`;
+      h+=`<td${attrs}${num?' class="num"':''}>${esc(t)}</td>`;
+    }
+    h+='</tr>';
+  }
+  h+='</table>';
+  const totalRows=maxR-firstR+1;
+  const note=(totalRows>MAX_ROWS||cols.length>MAX_COLS)?`Показана часть таблицы: ${endR-firstR+1} из ${totalRows} строк, ${shownCols.length} из ${cols.length} столбцов. Полностью — в скачанном файле.`:'';
+  return{html:h,note};
+}
+function lsGet(k){try{return localStorage.getItem(k);}catch(e){return null;}}
+function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
 function previewFile(tid,fi){
   const t=data.tasks.find(x=>x.id===tid);
   if(!t||!t.files||fi<0||fi>=t.files.length)return;
