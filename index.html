@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Дарья Измайлова — колледж</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
   :root{
     --bg:#f4f5f7; --card:#fff; --text:#1f2937; --muted:#6b7280;
@@ -154,7 +155,7 @@
   @media(max-width:760px){#app{grid-template-columns:1fr!important}aside{position:static;max-height:none;order:-1}
     .ov-bg{padding:12px 8px}.ov{padding:12px}
     .pv-body table.xls{font-size:12px}
-    .pv-body table.xls th,.pv-body table.xls td{padding:4px 6px;max-width:180px;white-space:normal;word-break:break-word;min-width:48px}}
+    .pv-body table.xls th,.pv-body table.xls td{padding:4px 6px;max-width:200px;white-space:normal;word-break:normal;overflow-wrap:break-word;min-width:90px}}
 </style>
 </head>
 <body>
@@ -429,7 +430,7 @@ function entryCard(t){
     </div>
     ${t.desc?`<div class="desc">${esc(t.desc)}</div>`:''}
     ${t.link?`<div><a href="${esc(t.link)}" target="_blank" rel="noopener">${esc(t.link)}</a></div>`:''}
-    ${t.files&&t.files.length?`<div class="files">${t.files.map((f,i)=>`<div class="file-row"><span class="file-ico">📎</span><a href="${esc(f.url||f.dataUrl||'#')}" target="_blank" rel="noopener">${esc(f.name)}</a><span class="fsize">${f.size}</span><button class="btn sm ghost" onclick="previewFile('${t.id}',${i})">👁 Просмотр</button><button class="btn sm ghost" onclick="downloadFile('${t.id}',${i})">⬇</button></div>`).join('')}</div>`:''}
+    ${t.files&&t.files.length?`<div class="files">${t.files.map((f,i)=>`<div class="file-row"><span class="file-ico">📎</span><a href="#" onclick="previewFile('${t.id}',${i});return false">${esc(f.name)}</a><span class="fsize">${f.size}</span><button class="btn sm ghost" onclick="previewFile('${t.id}',${i})">👁 Просмотр</button><button class="btn sm ghost" onclick="downloadFile('${t.id}',${i})">⬇</button></div>`).join('')}</div>`:''}
     <div class="row">
       ${dueHtml}
       <span class="duedate">${esc(subjectName(t.subject))}</span>
@@ -592,9 +593,19 @@ function isPdf(f){return mimeOf(f)==='application/pdf'||/\.pdf$/i.test(f.name);}
 function isText(f){return /\.(txt|md|csv|log|json|js|html|css|xml|sql|py|ts|java|c|cpp|h|ini|cfg|yml|yaml|sh|bat)$/i.test(f.name);}
 function isXlsx(f){return /\.(xlsx|xlsm|xls|ods)$/i.test(f.name);}
 function fileAt(tid,fi){const t=data.tasks.find(x=>x.id===tid);return t&&t.files&&t.files[fi]||null;}
+function tgApp(){const w=window.Telegram&&window.Telegram.WebApp;return w&&w.initData?w:null;}
 async function downloadFile(tid,fi){
   const f=fileAt(tid,fi);if(!f)return;
   const u=f.url||f.downloadUrl;if(!u){toast('Файл недоступен');return;}
+  const dl=f.downloadUrl||(u+(u.includes('?')?'&':'?')+'download=1');
+  // В мини-приложении Telegram обычное скачивание не работает: просим Telegram скачать файл сам
+  const tg=tgApp();
+  if(tg){
+    if(tg.downloadFile&&tg.isVersionAtLeast&&tg.isVersionAtLeast('8.0')){
+      try{tg.downloadFile({url:u,file_name:f.name||'file'});return;}catch(e){}
+    }
+    tg.openLink(dl);return;
+  }
   toast('Скачивание…');
   try{
     const r=await fetch(u);if(!r.ok)throw new Error('HTTP '+r.status);
@@ -604,7 +615,7 @@ async function downloadFile(tid,fi){
     setTimeout(()=>URL.revokeObjectURL(href),60000);
   }catch(e){
     // запасной вариант: Vercel Blob сам отдаёт файл как вложение
-    location.href=f.downloadUrl||(u+(u.includes('?')?'&':'?')+'download=1');
+    window.open(dl,'_blank','noopener');
   }
 }
 function closePreview(){document.getElementById('pvBg').classList.remove('open');}
