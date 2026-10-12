@@ -132,7 +132,7 @@
   .xls-btn{border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:8px;padding:6px 10px;font-size:14px;cursor:pointer;min-width:40px}
   .xls-btn.on{background:var(--accent);color:var(--accent-contrast);border-color:var(--accent)}
   .pv-body .xls-wrap{--xz:15px;max-width:100%;max-height:70vh;overflow:auto;-webkit-overflow-scrolling:touch;text-align:left;border:1px solid var(--line);border-radius:10px;background:var(--card)}
-  .pv-body table.xls{border-collapse:separate;border-spacing:0;font-size:var(--xz);line-height:1.4;color:var(--text);min-width:100%}
+  .pv-body table.xls{-webkit-text-size-adjust:100%;text-size-adjust:100%;border-collapse:separate;border-spacing:0;font-size:var(--xz);line-height:1.4;color:var(--text);min-width:100%}
   .pv-body table.xls td{border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:.55em .75em;vertical-align:top;text-align:left;white-space:normal;overflow-wrap:break-word;min-width:4em;max-width:16em}
   .pv-body table.xls td:first-child{position:sticky;left:0;z-index:1;background:var(--card);box-shadow:1px 0 0 var(--line)}
   .pv-body table.xls tr:nth-child(even) td:first-child{background:var(--file-bg)}
@@ -754,6 +754,7 @@ function renderXlsx(url,bodyEl){
           <div class="xls-tools">
             <button class="xls-btn" data-act="zo" title="Мельче">A−</button>
             <button class="xls-btn" data-act="zi" title="Крупнее">A+</button>
+            <button class="xls-btn" data-act="fit" title="Уместить весь лист по ширине экрана">⤢ Весь лист</button>
             <button class="xls-btn" data-act="wrap" title="Переносить текст в ячейках">↵ Перенос</button>
           </div>
         </div>
@@ -767,17 +768,31 @@ function renderXlsx(url,bodyEl){
       }
       bodyEl.querySelectorAll('[data-act]').forEach(b=>b.onclick=()=>{
         const a=b.dataset.act;
-        if(a==='zo')zoom=Math.max(11,zoom-1);
-        else if(a==='zi')zoom=Math.min(24,zoom+1);
+        if(a==='fit'){fit();return;}
+        if(a==='zo')zoom=Math.max(5,zoom>11?zoom-1:zoom-.5);
+        else if(a==='zi')zoom=Math.min(24,zoom>=11?zoom+1:zoom+.5);
         else wrap=!wrap;
         lsSet('xls_zoom',zoom);lsSet('xls_wrap',wrap?'1':'0');applyView();
       });
+      // подбираем размер шрифта так, чтобы вся таблица поместилась по ширине
+      function fit(){
+        const t=wrapEl.querySelector('table');if(!t)return;
+        for(let k=0;k<4;k++){
+          const need=t.scrollWidth,have=wrapEl.clientWidth-2;
+          if(need<=have&&k>0)break;
+          zoom=Math.max(4,Math.min(24,Math.floor(zoom*have/need*10)/10));
+          applyView();
+        }
+        wrapEl.scrollLeft=0;
+      }
       function show(i){
         cur=i;
         tabsEl.innerHTML=sheets.length>1?sheets.map((n,j)=>`<button class="${j===i?'active':''}" data-i="${j}">${esc(n)}</button>`).join(''):'';
         tabsEl.querySelectorAll('button').forEach(b=>b.onclick=()=>show(+b.dataset.i));
         const r=sheetToHtml(wb.Sheets[sheets[i]]);
         wrapEl.innerHTML=r.html;noteEl.textContent=r.note;wrapEl.scrollTop=0;wrapEl.scrollLeft=0;
+        // на телефоне сразу показываем весь лист по ширине, дальше можно приблизить A+
+        if(innerWidth<760)fit();
       }
       applyView();show(0);
     }catch(e){
